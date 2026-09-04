@@ -1,22 +1,23 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
+  # Keep the title stable: generated client paths depend on it.
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Online E-Learning Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: account
+  - name: student
+  - name: admin
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +25,1094 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getMe
+      tags: [account]
+      summary: Get the signed-in profile
+      responses:
+        "200":
+          description: Current profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateMe
+      tags: [account]
+      summary: Update the signed-in profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+  /dashboard:
+    get:
+      operationId: getStudentDashboard
+      tags: [student]
+      summary: Get student dashboard summary
+      responses:
+        "200":
+          description: Dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentDashboard"
+  /subjects:
+    get:
+      operationId: listSubjects
+      tags: [student]
+      summary: List published subjects for students
+      responses:
+        "200":
+          description: Subjects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subject"
+  /subjects/{id}:
+    get:
+      operationId: getSubject
+      tags: [student]
+      summary: Get a subject and its learning outline
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Subject detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubjectDetail"
+  /lessons:
+    get:
+      operationId: listLessons
+      tags: [student]
+      summary: List published lessons
+      parameters:
+        - name: subjectId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, completed, incomplete]
+            default: all
+      responses:
+        "200":
+          description: Lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lesson"
+  /lessons/{id}:
+    get:
+      operationId: getLesson
+      tags: [student]
+      summary: Get a lesson
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Lesson detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lesson"
+  /lessons/{id}/complete:
+    post:
+      operationId: completeLesson
+      tags: [student]
+      summary: Mark a lesson complete
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Updated lesson progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LessonCompletion"
+  /quizzes:
+    get:
+      operationId: listQuizzes
+      tags: [student]
+      summary: List available quizzes
+      responses:
+        "200":
+          description: Quizzes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuizSummary"
+  /quizzes/{id}:
+    get:
+      operationId: getQuiz
+      tags: [student]
+      summary: Get quiz questions without answer keys
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Quiz
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+  /quizzes/{id}/attempts:
+    post:
+      operationId: submitQuizAttempt
+      tags: [student]
+      summary: Submit a quiz attempt and calculate its score
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizAttemptInput"
+      responses:
+        "201":
+          description: Scored attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizResult"
+  /results:
+    get:
+      operationId: listMyResults
+      tags: [student]
+      summary: List the signed-in student's quiz results
+      responses:
+        "200":
+          description: Results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuizResult"
+  /progress:
+    get:
+      operationId: getMyProgress
+      tags: [student]
+      summary: Get learning progress
+      responses:
+        "200":
+          description: Progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProgressOverview"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [student]
+      summary: List current notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [account]
+      summary: Request a presigned learning-material upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadMetadata"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrl"
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags: [admin]
+      summary: Admin dashboard summary
+      responses:
+        "200":
+          description: Admin dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboard"
+  /admin/students:
+    get:
+      operationId: listAdminStudents
+      tags: [admin]
+      summary: Search students
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, active, inactive]
+            default: all
+      responses:
+        "200":
+          description: Students
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Student"
+    post:
+      operationId: createAdminStudent
+      tags: [admin]
+      summary: Create a student record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentInput"
+      responses:
+        "201":
+          description: Student
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+  /admin/students/{id}:
+    get:
+      operationId: getAdminStudent
+      tags: [admin]
+      summary: Get student details
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Student
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudentDetail"
+    patch:
+      operationId: updateAdminStudent
+      tags: [admin]
+      summary: Update a student
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentUpdate"
+      responses:
+        "200":
+          description: Student
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Student"
+    delete:
+      operationId: deleteAdminStudent
+      tags: [admin]
+      summary: Delete a student
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /admin/subjects:
+    get:
+      operationId: listAdminSubjects
+      tags: [admin]
+      summary: List all subjects
+      responses:
+        "200":
+          description: Subjects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subject"
+    post:
+      operationId: createSubject
+      tags: [admin]
+      summary: Create a subject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectInput"
+      responses:
+        "201":
+          description: Subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+  /admin/subjects/{id}:
+    patch:
+      operationId: updateSubject
+      tags: [admin]
+      summary: Update a subject
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectUpdate"
+      responses:
+        "200":
+          description: Subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+    delete:
+      operationId: deleteSubject
+      tags: [admin]
+      summary: Delete a subject
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /admin/lessons:
+    get:
+      operationId: listAdminLessons
+      tags: [admin]
+      summary: List all lessons
+      responses:
+        "200":
+          description: Lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lesson"
+    post:
+      operationId: createLesson
+      tags: [admin]
+      summary: Create a lesson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LessonInput"
+      responses:
+        "201":
+          description: Lesson
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lesson"
+  /admin/lessons/{id}:
+    patch:
+      operationId: updateLesson
+      tags: [admin]
+      summary: Update a lesson
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LessonUpdate"
+      responses:
+        "200":
+          description: Lesson
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lesson"
+    delete:
+      operationId: deleteLesson
+      tags: [admin]
+      summary: Delete a lesson
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /admin/quizzes:
+    get:
+      operationId: listAdminQuizzes
+      tags: [admin]
+      summary: List all quizzes
+      responses:
+        "200":
+          description: Quizzes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuizSummary"
+    post:
+      operationId: createQuiz
+      tags: [admin]
+      summary: Create a quiz
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizInput"
+      responses:
+        "201":
+          description: Quiz
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizSummary"
+  /admin/quizzes/{id}:
+    patch:
+      operationId: updateQuiz
+      tags: [admin]
+      summary: Update a quiz
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizUpdate"
+      responses:
+        "200":
+          description: Quiz
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuizSummary"
+    delete:
+      operationId: deleteQuiz
+      tags: [admin]
+      summary: Delete a quiz
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /admin/quizzes/{id}/questions:
+    get:
+      operationId: listQuestions
+      tags: [admin]
+      summary: List questions for a quiz
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+    post:
+      operationId: createQuestion
+      tags: [admin]
+      summary: Add a question to a quiz
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionInput"
+      responses:
+        "201":
+          description: Question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+  /admin/questions/{id}:
+    patch:
+      operationId: updateQuestion
+      tags: [admin]
+      summary: Update a question
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionUpdate"
+      responses:
+        "200":
+          description: Question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+    delete:
+      operationId: deleteQuestion
+      tags: [admin]
+      summary: Delete a question
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Deleted
+  /admin/results:
+    get:
+      operationId: listAdminResults
+      tags: [admin]
+      summary: View all student quiz results
+      parameters:
+        - name: studentId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: subjectId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: quizId
+          in: query
+          schema:
+            type: [integer, "null"]
+        - name: result
+          in: query
+          schema:
+            type: string
+            enum: [all, passed, failed]
+            default: all
+      responses:
+        "200":
+          description: Results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminResult"
+  /admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [admin]
+      summary: Get report aggregates
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReports"
+  /admin/profile:
+    get:
+      operationId: getAdminProfile
+      tags: [admin]
+      summary: Get admin profile
+      responses:
+        "200":
+          description: Admin profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateAdminProfile
+      tags: [admin]
+      summary: Update admin profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Admin profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
   schemas:
     HealthStatus:
       type: object
       properties:
+        status: { type: string }
+      required: [status]
+    UserProfile:
+      type: object
+      required: [id, fullName, email, role]
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        studentId: { type: [string, "null"] }
+        email: { type: string, format: email }
+        username: { type: [string, "null"] }
+        avatarUrl: { type: [string, "null"] }
+        role:
+          type: string
+          enum: [student, admin]
+    ProfileUpdate:
+      type: object
+      properties:
+        fullName: { type: string, minLength: 2 }
+        username: { type: string, minLength: 2 }
+        avatarUrl: { type: [string, "null"] }
+    Subject:
+      type: object
+      required: [id, name, code, description, lessonCount, quizCount, progress, status]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string }
+        description: { type: string }
+        lessonCount: { type: integer }
+        quizCount: { type: integer }
+        progress: { type: number }
         status:
           type: string
-      required:
-        - status
-
+          enum: [published, draft, archived]
+    SubjectInput:
+      type: object
+      required: [name, code, description, status]
+      properties:
+        name: { type: string, minLength: 2 }
+        code: { type: string, minLength: 2 }
+        description: { type: string }
+        status:
+          type: string
+          enum: [published, draft, archived]
+    SubjectUpdate:
+      allOf:
+        - $ref: "#/components/schemas/SubjectInput"
+    SubjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Subject"
+        - type: object
+          properties:
+            lessons:
+              type: array
+              items:
+                $ref: "#/components/schemas/Lesson"
+            quizzes:
+              type: array
+              items:
+                $ref: "#/components/schemas/QuizSummary"
+    Lesson:
+      type: object
+      required: [id, subjectId, subjectName, title, description, content, objectives, publishedAt, status, completed, progress]
+      properties:
+        id: { type: integer }
+        subjectId: { type: integer }
+        subjectName: { type: string }
+        title: { type: string }
+        description: { type: string }
+        content: { type: string }
+        objectives:
+          type: array
+          items: { type: string }
+        materialUrl: { type: [string, "null"] }
+        materialName: { type: [string, "null"] }
+        publishedAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [published, draft, archived]
+        completed: { type: boolean }
+        progress: { type: number }
+    LessonInput:
+      type: object
+      required: [subjectId, title, description, content, objectives, status]
+      properties:
+        subjectId: { type: integer }
+        title: { type: string, minLength: 2 }
+        description: { type: string }
+        content: { type: string }
+        objectives:
+          type: array
+          items: { type: string }
+        materialUrl: { type: [string, "null"] }
+        materialName: { type: [string, "null"] }
+        status:
+          type: string
+          enum: [published, draft, archived]
+    LessonUpdate:
+      allOf:
+        - $ref: "#/components/schemas/LessonInput"
+    LessonCompletion:
+      type: object
+      required: [lessonId, completed, overallProgress]
+      properties:
+        lessonId: { type: integer }
+        completed: { type: boolean }
+        overallProgress: { type: number }
+    QuizSummary:
+      type: object
+      required: [id, title, subjectId, subjectName, lessonId, questionCount, passingScore, timeLimit, status, attempts, bestScore]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        subjectId: { type: integer }
+        subjectName: { type: string }
+        lessonId: { type: [integer, "null"] }
+        questionCount: { type: integer }
+        passingScore: { type: number }
+        timeLimit: { type: [integer, "null"] }
+        status:
+          type: string
+          enum: [published, draft, archived]
+        attempts: { type: integer }
+        bestScore: { type: [number, "null"] }
+    QuizInput:
+      type: object
+      required: [title, subjectId, description, passingScore, status]
+      properties:
+        title: { type: string, minLength: 2 }
+        subjectId: { type: integer }
+        lessonId: { type: [integer, "null"] }
+        description: { type: string }
+        passingScore: { type: number, minimum: 0, maximum: 100 }
+        timeLimit: { type: [integer, "null"], minimum: 1 }
+        status:
+          type: string
+          enum: [published, draft, archived]
+    QuizUpdate:
+      allOf:
+        - $ref: "#/components/schemas/QuizInput"
+    Quiz:
+      allOf:
+        - $ref: "#/components/schemas/QuizSummary"
+        - type: object
+          required: [description, questions]
+          properties:
+            description: { type: string }
+            questions:
+              type: array
+              items:
+                $ref: "#/components/schemas/QuizQuestion"
+    QuizQuestion:
+      type: object
+      required: [id, number, text, type, choices, points]
+      properties:
+        id: { type: integer }
+        number: { type: integer }
+        text: { type: string }
+        type:
+          type: string
+          enum: [multiple_choice, true_false]
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizChoice"
+        points: { type: integer }
+    QuizChoice:
+      type: object
+      required: [id, label, value]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        value: { type: string }
+    Question:
+      allOf:
+        - $ref: "#/components/schemas/QuizQuestion"
+        - type: object
+          required: [correctAnswer]
+          properties:
+            correctAnswer: { type: string }
+    QuestionInput:
+      type: object
+      required: [text, type, choices, correctAnswer, points]
+      properties:
+        text: { type: string, minLength: 2 }
+        type:
+          type: string
+          enum: [multiple_choice, true_false]
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizChoice"
+        correctAnswer: { type: string }
+        points: { type: integer, minimum: 1 }
+    QuestionUpdate:
+      allOf:
+        - $ref: "#/components/schemas/QuestionInput"
+    QuizAttemptInput:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [questionId, answer]
+            properties:
+              questionId: { type: integer }
+              answer: { type: string }
+    QuizResult:
+      type: object
+      required: [id, quizId, quizName, subjectName, score, totalPoints, percentage, correctAnswers, incorrectAnswers, passingScore, passed, dateTaken]
+      properties:
+        id: { type: integer }
+        quizId: { type: integer }
+        quizName: { type: string }
+        subjectName: { type: string }
+        score: { type: integer }
+        totalPoints: { type: integer }
+        percentage: { type: number }
+        correctAnswers: { type: integer }
+        incorrectAnswers: { type: integer }
+        passingScore: { type: number }
+        passed: { type: boolean }
+        dateTaken: { type: string, format: date-time }
+    ProgressOverview:
+      type: object
+      required: [overallProgress, lessonsCompleted, lessonsRemaining, quizzesCompleted, averageScore, subjects]
+      properties:
+        overallProgress: { type: number }
+        lessonsCompleted: { type: integer }
+        lessonsRemaining: { type: integer }
+        quizzesCompleted: { type: integer }
+        averageScore: { type: number }
+        subjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubjectProgress"
+    SubjectProgress:
+      type: object
+      required: [subjectId, subjectName, completed, total, percentage]
+      properties:
+        subjectId: { type: integer }
+        subjectName: { type: string }
+        completed: { type: integer }
+        total: { type: integer }
+        percentage: { type: number }
+    Notification:
+      type: object
+      required: [id, title, message, type, createdAt, read]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        message: { type: string }
+        type:
+          type: string
+          enum: [lesson, quiz, result, activity]
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean }
+    UploadMetadata:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: integer, minimum: 1 }
+        contentType: { type: string, minLength: 1 }
+    UploadUrl:
+      type: object
+      required: [uploadURL, objectPath, metadata]
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+        metadata:
+          $ref: "#/components/schemas/UploadMetadata"
+    StudentDashboard:
+      type: object
+      required: [profile, stats, recentLessons, recentResults, recommendedLessons]
+      properties:
+        profile:
+          $ref: "#/components/schemas/UserProfile"
+        stats:
+          type: object
+          required: [totalSubjects, lessonsCompleted, quizzesTaken, averageScore, progress]
+          properties:
+            totalSubjects: { type: integer }
+            lessonsCompleted: { type: integer }
+            quizzesTaken: { type: integer }
+            averageScore: { type: number }
+            progress: { type: number }
+        recentLessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lesson"
+        recentResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizResult"
+        recommendedLessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lesson"
+    Student:
+      type: object
+      required: [id, fullName, studentId, email, username, registeredAt, status]
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        studentId: { type: string }
+        email: { type: string, format: email }
+        username: { type: string }
+        registeredAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [active, inactive]
+        quizzesTaken: { type: integer }
+        averageScore: { type: number }
+        progress: { type: number }
+    StudentInput:
+      type: object
+      required: [fullName, studentId, email, username]
+      properties:
+        fullName: { type: string, minLength: 2 }
+        studentId: { type: string, minLength: 2 }
+        email: { type: string, format: email }
+        username: { type: string, minLength: 2 }
+        status:
+          type: string
+          enum: [active, inactive]
+    StudentUpdate:
+      allOf:
+        - $ref: "#/components/schemas/StudentInput"
+    StudentDetail:
+      allOf:
+        - $ref: "#/components/schemas/Student"
+        - type: object
+          required: [results, progressDetails]
+          properties:
+            results:
+              type: array
+              items:
+                $ref: "#/components/schemas/QuizResult"
+            progressDetails:
+              $ref: "#/components/schemas/ProgressOverview"
+    AdminDashboard:
+      type: object
+      required: [stats, performance, quizScores, subjectProgress, attemptsByMonth, recentActivity]
+      properties:
+        stats:
+          type: object
+          required: [totalStudents, totalSubjects, totalLessons, totalQuizzes, totalAttempts, averageScore]
+          properties:
+            totalStudents: { type: integer }
+            totalSubjects: { type: integer }
+            totalLessons: { type: integer }
+            totalQuizzes: { type: integer }
+            totalAttempts: { type: integer }
+            averageScore: { type: number }
+        performance:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformancePoint"
+        quizScores:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformancePoint"
+        subjectProgress:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformancePoint"
+        attemptsByMonth:
+          type: array
+          items:
+            $ref: "#/components/schemas/PerformancePoint"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+    PerformancePoint:
+      type: object
+      required: [label, value]
+      properties:
+        label: { type: string }
+        value: { type: number }
+    AdminResult:
+      allOf:
+        - $ref: "#/components/schemas/QuizResult"
+        - type: object
+          required: [studentName, studentId]
+          properties:
+            studentName: { type: string }
+            studentId: { type: string }
+    AdminReports:
+      type: object
+      required: [studentPerformance, quizPerformance, learningProgress]
+      properties:
+        studentPerformance:
+          type: array
+          items:
+            $ref: "#/components/schemas/StudentPerformanceReport"
+        quizPerformance:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizPerformanceReport"
+        learningProgress:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningProgressReport"
+    StudentPerformanceReport:
+      type: object
+      required: [studentName, totalQuizzes, averageScore, passed, failed]
+      properties:
+        studentName: { type: string }
+        totalQuizzes: { type: integer }
+        averageScore: { type: number }
+        passed: { type: integer }
+        failed: { type: integer }
+    QuizPerformanceReport:
+      type: object
+      required: [quizName, attempts, averageScore, highestScore, lowestScore, passingRate]
+      properties:
+        quizName: { type: string }
+        attempts: { type: integer }
+        averageScore: { type: number }
+        highestScore: { type: number }
+        lowestScore: { type: number }
+        passingRate: { type: number }
+    LearningProgressReport:
+      type: object
+      required: [student, subject, lessonsCompleted, totalLessons, percentage]
+      properties:
+        student: { type: string }
+        subject: { type: string }
+        lessonsCompleted: { type: integer }
+        totalLessons: { type: integer }
+        percentage: { type: number }

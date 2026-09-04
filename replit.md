@@ -1,15 +1,16 @@
-# [Project name]
+# LumenPath Online E-Learning Platform
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+LumenPath is a responsive student learning space with Clerk accounts, lessons, quizzes, automatic scoring, progress tracking, and a protected admin operations area.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Clerk and App Storage environment values are provisioned by Replit and should be managed through the workspace secrets/integrations UI.
 
 ## Stack
 
@@ -22,23 +23,35 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/online-learning-platform/src/App.tsx` — student and admin shells, routes, auth gates, and page UI
+- `artifacts/online-learning-platform/src/index.css` — LumenPath visual tokens and responsive utility styles
+- `artifacts/api-server/src/routes/learning.ts` — authenticated student and admin API handlers
+- `artifacts/api-server/src/middlewares/auth.ts` — Clerk session and database role checks
+- `artifacts/api-server/src/routes/storage.ts` — authenticated App Storage upload/object routes
+- `artifacts/api-server/src/seed.ts` — idempotent demo curriculum seed
+- `lib/api-spec/openapi.yaml` — API source of truth; regenerate clients after contract edits
+- `lib/db/src/schema/learning.ts` — Drizzle source of truth for learning data
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Clerk is the authentication provider; platform user records are provisioned on the first authenticated API request.
+- Admin access is enforced server-side from the platform user role, not only by frontend routing.
+- PostgreSQL stores curriculum, attempts, answers, progress, and notifications; App Storage stores uploaded material objects.
+- API hooks and Zod request schemas are generated from the OpenAPI contract.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Students can sign up, browse subjects and lessons, complete lessons, take scored quizzes, review results, track progress, and edit their profile. Admins can manage students, subjects, lessons, quizzes, questions, results, reports, and their profile.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+No additional preferences recorded.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run API code generation after changing `lib/api-spec/openapi.yaml`.
+- The Vite build expects `PORT` and `BASE_PATH`; the managed web workflow supplies them automatically.
+- Protected API routes require a Clerk session; admin endpoints also require a matching `platform_users.role = 'admin'` record.
 
 ## Pointers
 

@@ -1,0 +1,1 @@
+- [Authentication boundary](auth-boundary.md) — Clerk identifies users; the platform database role authorizes admin access on the server.

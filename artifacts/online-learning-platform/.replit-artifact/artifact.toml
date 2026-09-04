@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Online E-Learning Platform"
+description = "A responsive learning platform where students study lessons, complete quizzes, track progress, and review results, with a protected admin workspace for managing the full learning catalog and student performance."
+version = "1.0.0"
+id = "artifacts/online-learning-platform"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21522
+
+[services.development]
+run = "pnpm --filter @workspace/online-learning-platform run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/online-learning-platform", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/online-learning-platform/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21522"
+BASE_PATH = "/"

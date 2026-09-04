@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { seedDemoData } from "./seed";
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +16,21 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
+async function start() {
+  try {
+    await seedDemoData();
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+
+      logger.info({ port }, "Server listening");
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Unable to seed database");
     process.exit(1);
   }
+}
 
-  logger.info({ port }, "Server listening");
-});
+void start();
