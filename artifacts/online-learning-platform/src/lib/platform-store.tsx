@@ -1,16 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import {
-  DEMO_STUDENT_DASHBOARD,
-  DEMO_SUBJECTS,
-  DEMO_LESSONS,
-  DEMO_QUIZZES,
-  DEMO_RESULTS,
-  DEMO_PROGRESS,
-  DEMO_ADMIN_DASHBOARD,
-  DEMO_ADMIN_STUDENTS,
-  DEMO_ADMIN_QUESTIONS,
-  DEMO_ADMIN_REPORTS,
-} from './mock-data';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 export interface SubjectItem {
   id: number;
@@ -198,7 +187,7 @@ interface PlatformStoreContextType {
     totalAttempts: number;
     averageScore: number;
   };
-  reportsData: typeof DEMO_ADMIN_REPORTS;
+  reportsData: any;
   resetAllToDefault: () => void;
 }
 
@@ -226,25 +215,25 @@ function setStorage<T>(key: string, val: T) {
 
 export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<SubjectItem[]>(() =>
-    getInitial('subjects', DEMO_SUBJECTS)
+    getInitial('subjects', [])
   );
   const [lessons, setLessons] = useState<LessonItem[]>(() =>
-    getInitial('lessons', DEMO_LESSONS)
+    getInitial('lessons', [])
   );
   const [quizzes, setQuizzes] = useState<QuizItem[]>(() =>
-    getInitial('quizzes', DEMO_QUIZZES)
+    getInitial('quizzes', [])
   );
   const [questions, setQuestions] = useState<QuestionBankItem[]>(() =>
-    getInitial('questions', DEMO_ADMIN_QUESTIONS)
+    getInitial('questions', [])
   );
   const [results, setResults] = useState<QuizResultItem[]>(() =>
-    getInitial('results', DEMO_RESULTS)
+    getInitial('results', [])
   );
   const [students, setStudents] = useState<StudentRecord[]>(() =>
-    getInitial('students', DEMO_ADMIN_STUDENTS as StudentRecord[])
+    getInitial('students', [])
   );
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>(() =>
-    getInitial('activity', DEMO_ADMIN_DASHBOARD.recentActivity)
+    getInitial('activity', [])
   );
 
   // Sync to storage
@@ -681,13 +670,13 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   };
 
   const resetAllToDefault = () => {
-    setSubjects(DEMO_SUBJECTS);
-    setLessons(DEMO_LESSONS);
-    setQuizzes(DEMO_QUIZZES);
-    setQuestions(DEMO_ADMIN_QUESTIONS);
-    setResults(DEMO_RESULTS);
-    setStudents(DEMO_ADMIN_STUDENTS as StudentRecord[]);
-    setRecentActivity(DEMO_ADMIN_DASHBOARD.recentActivity);
+    setSubjects([]);
+    setLessons([]);
+    setQuizzes([]);
+    setQuestions([]);
+    setResults([]);
+    setStudents([]);
+    setRecentActivity([]);
   };
 
   return (
