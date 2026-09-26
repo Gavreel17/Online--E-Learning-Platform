@@ -4178,6 +4178,7 @@ function AdminLoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [secretCode, setSecretCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -4192,13 +4193,23 @@ function AdminLoginPage() {
       return;
     }
     
-    if (isRegistering && !name) {
-      toast({
-        title: 'Name Required',
-        description: 'Please enter your full name for registration.',
-        variant: 'destructive',
-      });
-      return;
+    if (isRegistering) {
+      if (!name) {
+        toast({
+          title: 'Name Required',
+          description: 'Please enter your full name for registration.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (secretCode !== 'admin-key-2026') {
+        toast({
+          title: 'Access Denied',
+          description: 'Invalid administrative secret code. You cannot register as an admin without authorization.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -4309,6 +4320,25 @@ function AdminLoginPage() {
               </button>
             </div>
           </div>
+          
+          {isRegistering && (
+            <div>
+              <label className="block text-xs font-bold text-primary flex items-center justify-between">
+                <span>Secret Admin Code</span>
+                <span className="text-[10px] text-red-500 font-mono">Required</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type="password"
+                  required
+                  value={secretCode}
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  placeholder="Enter authorized code"
+                  className="w-full rounded-xl border border-red-200 bg-red-50/30 px-3.5 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -4333,7 +4363,10 @@ function AdminLoginPage() {
             {isRegistering ? "Already have an admin account?" : "Need an admin account?"}{" "}
             <button 
               type="button"
-              onClick={() => setIsRegistering(!isRegistering)} 
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setSecretCode('');
+              }} 
               className="font-bold text-teal-700 hover:underline"
             >
               {isRegistering ? "Sign in instead" : "Register here"}
