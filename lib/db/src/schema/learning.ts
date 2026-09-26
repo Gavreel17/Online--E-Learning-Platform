@@ -76,6 +76,8 @@ export const quizzesTable = pgTable("quizzes", {
   description: text("description").notNull().default(""),
   passingScore: doublePrecision("passing_score").notNull().default(70),
   timeLimit: integer("time_limit"),
+  attachmentUrl: text("attachment_url"),
+  attachmentName: text("attachment_name"),
   status: text("status").notNull().default("published"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
