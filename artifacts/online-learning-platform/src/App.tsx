@@ -4174,12 +4174,14 @@ function AdminLoginPage() {
   const { signIn, signOut, user, isSignedIn, role } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleAdminSignIn = (e: React.FormEvent) => {
+  const handleAdminAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       toast({
@@ -4189,15 +4191,31 @@ function AdminLoginPage() {
       });
       return;
     }
+    
+    if (isRegistering && !name) {
+      toast({
+        title: 'Name Required',
+        description: 'Please enter your full name for registration.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsLoading(true);
     setTimeout(() => {
-      const inferredName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) || 'Administrator';
+      let inferredName = name;
+      if (!isRegistering) {
+        inferredName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) || 'Administrator';
+      }
+      
       signIn('admin', inferredName, email);
       setIsLoading(false);
+      
       toast({
-        title: 'Admin Access Granted',
-        description: `Welcome back, ${inferredName}. Platform management session active.`,
+        title: isRegistering ? 'Admin Registered & Signed In' : 'Admin Access Granted',
+        description: isRegistering 
+          ? `Welcome to the platform, ${inferredName}.` 
+          : `Welcome back, ${inferredName}. Platform management session active.`,
       });
       setLocation('/admin/dashboard');
     }, 350);
@@ -4210,12 +4228,16 @@ function AdminLoginPage() {
           <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
             <ShieldCheck className="size-7" />
           </div>
-          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">Restricted Operations</p>
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Restricted Operations
+          </p>
           <h1 className="mt-1 font-display text-2xl font-extrabold text-primary">
-            Admin Console Login
+            {isRegistering ? 'Admin Registration' : 'Admin Console Login'}
           </h1>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Sign in with verified educator or administrative credentials to access institutional controls.
+            {isRegistering 
+              ? 'Create a new institutional administrator account.'
+              : 'Sign in with verified educator or administrative credentials.'}
           </p>
         </div>
 
@@ -4234,7 +4256,23 @@ function AdminLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleAdminSignIn} className="mt-6 space-y-4">
+        <form onSubmit={handleAdminAuth} className="mt-6 space-y-4">
+          {isRegistering && (
+            <div>
+              <label className="block text-xs font-bold text-primary">Full Name</label>
+              <div className="relative mt-1">
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Maria Santos"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold text-primary">Admin Email / Username</label>
             <div className="relative mt-1">
@@ -4286,17 +4324,30 @@ function AdminLoginPage() {
             className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
             data-testid="button-admin-signin-submit"
           >
-            {isLoading ? 'Verifying Credentials...' : 'Sign in to Admin Console'}
+            {isLoading ? 'Verifying...' : (isRegistering ? 'Register Admin Account' : 'Sign in to Admin Console')}
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
-          <Link href="/sign-in" className="font-bold text-teal-700 hover:underline">
-            ← Student sign in
-          </Link>
-          <Link href="/" className="hover:underline">
-            Home
-          </Link>
+        <div className="mt-6 flex flex-col items-center gap-4 border-t border-border pt-4 text-xs">
+          <p className="text-muted-foreground">
+            {isRegistering ? "Already have an admin account?" : "Need an admin account?"}{" "}
+            <button 
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)} 
+              className="font-bold text-teal-700 hover:underline"
+            >
+              {isRegistering ? "Sign in instead" : "Register here"}
+            </button>
+          </p>
+          
+          <div className="flex w-full justify-between text-muted-foreground">
+            <Link href="/sign-in" className="font-bold text-teal-700 hover:underline">
+              ← Student sign in
+            </Link>
+            <Link href="/" className="hover:underline">
+              Home
+            </Link>
+          </div>
         </div>
       </div>
     </div>
