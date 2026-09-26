@@ -3,6 +3,23 @@
 -- Supabase Database Schema
 -- ==========================================
 
+-- Drop existing tables and policies to ensure a clean slate
+DROP POLICY IF EXISTS "Allow public read/write on profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public read/write on subjects" ON public.subjects;
+DROP POLICY IF EXISTS "Allow public read/write on lessons" ON public.lessons;
+DROP POLICY IF EXISTS "Allow public read/write on quizzes" ON public.quizzes;
+DROP POLICY IF EXISTS "Allow public read/write on questions" ON public.questions;
+DROP POLICY IF EXISTS "Allow public read/write on quiz_results" ON public.quiz_results;
+DROP POLICY IF EXISTS "Allow public read/write on lesson_progress" ON public.lesson_progress;
+
+DROP TABLE IF EXISTS public.lesson_progress CASCADE;
+DROP TABLE IF EXISTS public.quiz_results CASCADE;
+DROP TABLE IF EXISTS public.questions CASCADE;
+DROP TABLE IF EXISTS public.quizzes CASCADE;
+DROP TABLE IF EXISTS public.lessons CASCADE;
+DROP TABLE IF EXISTS public.subjects CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+
 -- 1. Users Table (Extends Supabase Auth or can be standalone if manual auth)
 -- Since we are manually creating users or using Supabase Auth later, let's make a generic profiles table
 CREATE TABLE public.profiles (
