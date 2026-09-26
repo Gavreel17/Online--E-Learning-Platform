@@ -6,7 +6,9 @@
     "dev": "pnpm --filter @workspace/online-learning-platform run dev",
     "dev:api": "pnpm --filter @workspace/api-server run dev",
     "preinstall": "node -e \"if (!process.env.npm_config_user_agent?.startsWith('pnpm')) { console.error('Use pnpm instead'); process.exit(1); }\"",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "pnpm --filter @workspace/online-learning-platform run build",
+    "build:all": "pnpm run typecheck && pnpm -r --if-present run build",
+    "start": "pnpm --filter @workspace/online-learning-platform run serve",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },

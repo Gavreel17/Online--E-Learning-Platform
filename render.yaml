@@ -1,0 +1,18 @@
+services:
+  # LumenPath Online E-Learning Platform - Static Site Deployment on Render
+  - type: web
+    name: lumenpath-elearning
+    runtime: static
+    buildCommand: pnpm install && pnpm build
+    staticPublishPath: ./artifacts/online-learning-platform/dist/public
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://mnsyymgvuglyyelttlav.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: sb_publishable_jUjq-A3TphIch-dJRWSk_Q_gHOw8Xx9
+      - key: NODE_VERSION
+        value: 20
