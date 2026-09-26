@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { AuthProvider, useAuth, DEMO_STUDENT, DEMO_ADMIN } from '@/lib/auth-context';
 import { PlatformStoreProvider, usePlatformStore } from '@/lib/platform-store';
 import { useToast } from '@/hooks/use-toast';
+import { ThemeProvider } from '@/components/theme-provider';
 import {
   DEMO_STUDENT_DASHBOARD,
   DEMO_SUBJECTS,
@@ -15,6 +16,7 @@ import {
   DEMO_ADMIN_QUESTIONS,
   DEMO_ADMIN_REPORTS,
 } from '@/lib/mock-data';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 import {
   ArrowRight, BarChart3, Bell, BookOpen, BookOpenCheck, Check, CheckCircle2,
@@ -531,7 +533,8 @@ function AppShell({ children, admin = false, preview = false }: { children: Reac
           <div className="hidden text-sm font-semibold text-muted-foreground md:block">
             {admin ? 'LumenPath / Operations & Administration' : 'LumenPath / Your Learning Space'}
           </div>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href={admin ? '/admin/profile' : '/student/profile'}
               className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-primary shadow-sm hover:bg-muted"
@@ -4625,18 +4628,20 @@ function Router() {
 
 function App() {
   return (
-    <TooltipProvider>
-      <WouterRouter base={basePath}>
-        <AuthProvider>
-          <PlatformStoreProvider>
-            <QueryClientProvider client={queryClient}>
-              <Router />
-            </QueryClientProvider>
-          </PlatformStoreProvider>
-        </AuthProvider>
-      </WouterRouter>
-      <Toaster />
-    </TooltipProvider>
+    <ThemeProvider defaultTheme="system" storageKey="lumenpath-theme">
+      <TooltipProvider>
+        <WouterRouter base={basePath}>
+          <AuthProvider>
+            <PlatformStoreProvider>
+              <QueryClientProvider client={queryClient}>
+                <Router />
+              </QueryClientProvider>
+            </PlatformStoreProvider>
+          </AuthProvider>
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </ThemeProvider>
   );
 }
 
