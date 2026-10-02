@@ -686,10 +686,21 @@ function Feature({ n, icon: Icon, title, body }: { n: string; icon: any; title: 
    ========================================================================= */
 
 function StudentDashboard() {
-  const { studentStats, lessons, subjects } = usePlatformStore();
+  const { studentStats, lessons, subjects, syncCurrentStudent } = usePlatformStore();
   const { user } = useAuth();
   const recent = lessons.slice(0, 4);
   const nextLesson = lessons.find((l) => !l.completed) || lessons[0];
+
+  useEffect(() => {
+    if (user && user.role === 'student') {
+      syncCurrentStudent({
+        fullName: user.fullName,
+        email: user.email,
+        studentId: user.studentId,
+        progress: studentStats.progress,
+      });
+    }
+  }, [user?.fullName, user?.email, user?.studentId, studentStats.progress, syncCurrentStudent]);
 
   return (
     <>
@@ -1727,6 +1738,7 @@ function ProgressPage() {
 
 function ProfilePage({ admin = false }: { admin?: boolean }) {
   const { user, updateUser } = useAuth();
+  const store = usePlatformStore();
   const { toast } = useToast();
   const me = user || (admin ? DEMO_ADMIN : DEMO_STUDENT);
   const [name, setName] = useState(me?.fullName || '');
@@ -1803,6 +1815,13 @@ function ProfilePage({ admin = false }: { admin?: boolean }) {
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     updateUser({ fullName: name });
+    if (!admin && me) {
+      store.syncCurrentStudent({
+        fullName: name,
+        email: me.email,
+        studentId: me.studentId,
+      });
+    }
     toast({
       title: 'Profile Updated',
       description: 'Your changes have been saved successfully.',
@@ -1950,6 +1969,13 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
   const { toast } = useToast();
 
   const [activeChartMonth, setActiveChartMonth] = useState<number>(5);
+  const [studentCohortFilter, setStudentCohortFilter] = useState<'all' | 'registered'>('all');
+
+  const registeredCount = students.filter((s) => s.source === 'online_registration').length;
+  const displayedStudents =
+    studentCohortFilter === 'registered'
+      ? students.filter((s) => s.source === 'online_registration')
+      : students;
 
   const performanceMonths = [
     { label: 'Nov', value: 64, passedRate: 72, attempts: 85 },
@@ -2040,10 +2066,12 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
               <Users className="size-4 text-teal-700" />
             </div>
           </div>
-          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{adminStats.totalStudents}</div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{students.length}</div>
           <div className="mt-2 flex items-center gap-1.5 text-xs">
-            <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+12% this month</span>
-            <span className="text-muted-foreground">· 100% active</span>
+            <span className="font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+              <Sparkles className="size-2.5" /> {registeredCount} registered online
+            </span>
+            <span className="text-muted-foreground">· {students.filter((s) => s.status === 'active').length} active</span>
           </div>
         </div>
 
@@ -2294,38 +2322,79 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
             </div>
           </section>
 
-          {/* Student Watchlist */}
+          {/* Student Watchlist & Online Registrations */}
           <section className="rounded-2xl border border-card-border bg-card p-6 shadow-sm">
-            <div className="flex items-center justify-between border-b border-border pb-4">
+            <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">Enrolled Cohort</p>
-                <h3 className="font-display text-lg font-bold">Learner Spotlight</h3>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">Enrolled & Registered</p>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400">
+                    <Sparkles className="size-2.5" /> {registeredCount} Online
+                  </span>
+                </div>
+                <h3 className="mt-1 font-display text-lg font-bold">Learner Spotlight</h3>
               </div>
-              <Link href="/admin/students" className="text-xs font-bold text-teal-700 hover:underline">
-                All ({students.length}) →
-              </Link>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
+                  <button
+                    onClick={() => setStudentCohortFilter('all')}
+                    className={`rounded-md px-2.5 py-1 font-bold transition-colors ${
+                      studentCohortFilter === 'all' ? 'bg-card text-primary shadow-xs' : 'text-muted-foreground'
+                    }`}
+                  >
+                    All ({students.length})
+                  </button>
+                  <button
+                    onClick={() => setStudentCohortFilter('registered')}
+                    className={`rounded-md px-2.5 py-1 font-bold transition-colors ${
+                      studentCohortFilter === 'registered' ? 'bg-card text-emerald-700 dark:text-emerald-400 shadow-xs' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Online ({registeredCount})
+                  </button>
+                </div>
+                <Link href="/admin/students" className="text-xs font-bold text-teal-700 hover:underline">
+                  All →
+                </Link>
+              </div>
             </div>
 
             <div className="mt-4 divide-y divide-border">
-              {students.slice(0, 4).map((st) => (
-                <div key={st.id} className="py-3 first:pt-1 last:pb-0 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-primary">{st.fullName}</p>
-                    <p className="text-xs text-muted-foreground">{st.studentId} · {st.email}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="block font-mono-ui text-xs font-bold text-teal-700">{st.progress}% done</span>
-                    <button
-                      onClick={() => store.toggleStudentStatus(st.id)}
-                      className={`mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${
-                        st.status === 'active' ? 'bg-teal-700/10 text-teal-700' : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {st.status}
-                    </button>
-                  </div>
+              {displayedStudents.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-xs font-semibold text-muted-foreground">No students found for this filter.</p>
                 </div>
-              ))}
+              ) : (
+                displayedStudents.slice(0, 6).map((st) => (
+                  <div key={st.id} className="py-3.5 first:pt-1 last:pb-0 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar name={st.fullName} className="size-9 shrink-0" textSize="text-xs" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="truncate text-sm font-bold text-primary">{st.fullName}</p>
+                          {st.source === 'online_registration' && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 text-[8px] font-bold text-emerald-700 dark:text-emerald-400">
+                              <Sparkles className="size-2 text-emerald-600" /> Online
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{st.studentId} · {st.email}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="block font-mono-ui text-xs font-bold text-teal-700">{st.progress}% done</span>
+                      <button
+                        onClick={() => store.toggleStudentStatus(st.id)}
+                        className={`mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase transition-colors ${
+                          st.status === 'active' ? 'bg-teal-700/10 text-teal-700' : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {st.status}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </section>
         </div>
@@ -2376,7 +2445,7 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'registered' | 'active' | 'inactive'>('all');
 
   // Form states
   const [studentForm, setStudentForm] = useState({ fullName: '', email: '', studentId: '', username: '' });
@@ -2393,8 +2462,13 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
     switch (kind) {
       case 'students':
         return store.students.filter((s) => {
-          const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-          const matchSearch = `${s.fullName} ${s.studentId} ${s.email}`.toLowerCase().includes(search.toLowerCase());
+          const matchStatus =
+            statusFilter === 'all'
+              ? true
+              : statusFilter === 'registered'
+              ? s.source === 'online_registration'
+              : s.status === statusFilter;
+          const matchSearch = `${s.fullName} ${s.studentId} ${s.email} ${s.source || ''}`.toLowerCase().includes(search.toLowerCase());
           return matchStatus && matchSearch;
         });
       case 'subjects':
@@ -2728,15 +2802,15 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
 
         {kind === 'students' && (
           <div className="flex rounded-xl border border-border bg-card p-1">
-            {(['all', 'active', 'inactive'] as const).map((s) => (
+            {(['all', 'registered', 'active', 'inactive'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`rounded-lg px-3 py-1 text-xs font-bold capitalize ${
-                  statusFilter === s ? 'bg-primary text-accent' : 'text-muted-foreground'
+                className={`rounded-lg px-3 py-1 text-xs font-bold capitalize transition-colors ${
+                  statusFilter === s ? 'bg-primary text-accent' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {s}
+                {s === 'registered' ? 'Registered Online' : s}
               </button>
             ))}
           </div>
@@ -2763,8 +2837,18 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                 data-testid={`row-admin-${kind}-${x.id}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate font-bold">{x.fullName ?? x.title ?? x.name ?? x.text ?? x.quizName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{x.email ?? x.description ?? x.studentName ?? ''}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="truncate font-bold">{x.fullName ?? x.title ?? x.name ?? x.text ?? x.quizName}</p>
+                    {kind === 'students' && x.source === 'online_registration' && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400">
+                        <Sparkles className="size-2.5" /> Registered Online
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {x.email ?? x.description ?? x.studentName ?? ''}
+                    {kind === 'students' && x.registeredAt ? ` · Joined ${x.registeredAt}` : ''}
+                  </p>
 
                   {/* Attachment chips for Lessons, Quizzes, Results */}
                   {kind === 'lessons' && x.materialName && (
@@ -4392,6 +4476,7 @@ function AdminLoginPage() {
 
 function SignInPage() {
   const { signIn, user, isSignedIn, role } = useAuth();
+  const store = usePlatformStore();
   const [location, setLocation] = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -4404,6 +4489,12 @@ function SignInPage() {
       ? email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
       : targetRole === 'admin' ? 'Administrator' : 'Student';
     signIn(targetRole, inferredName, email || undefined);
+    if (targetRole === 'student') {
+      store.syncCurrentStudent({
+        fullName: inferredName,
+        email: email,
+      });
+    }
     setLocation(targetRole === 'admin' ? '/admin/dashboard' : '/student/dashboard');
   };
 
@@ -4488,6 +4579,7 @@ function SignInPage() {
 
 function SignUpPage() {
   const { signUp, isSignedIn, role } = useAuth();
+  const store = usePlatformStore();
   const [, setLocation] = useLocation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -4498,7 +4590,18 @@ function SignUpPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    signUp(name || 'New Learner', email || 'learner@lumenpath.local', 'student');
+    const studentName = name.trim() || 'New Learner';
+    const studentEmail = email.trim() || 'learner@lumenpath.local';
+    const studentId = `STU-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    signUp(studentName, studentEmail, 'student');
+    store.addStudent({
+      fullName: studentName,
+      email: studentEmail,
+      studentId,
+      source: 'online_registration',
+      progress: 0,
+    });
     setLocation('/student/dashboard');
   };
 

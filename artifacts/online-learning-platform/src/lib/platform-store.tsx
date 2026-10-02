@@ -1,5 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  DEMO_SUBJECTS,
+  DEMO_LESSONS,
+  DEMO_QUIZZES,
+  DEMO_RESULTS,
+  DEMO_ADMIN_STUDENTS,
+  DEMO_ADMIN_QUESTIONS,
+} from '@/lib/mock-data';
 
 export interface SubjectItem {
   id: number;
@@ -92,6 +99,9 @@ export interface StudentRecord {
   username?: string;
   status: 'active' | 'inactive';
   progress: number;
+  source?: 'online_registration' | 'admin_enrolled' | 'demo';
+  registeredAt?: string;
+  lastActive?: string;
 }
 
 export interface ActivityItem {
@@ -128,6 +138,24 @@ interface PlatformStoreContextType {
     passingScore: number;
   };
 
+  // Student Registration & Synchronization
+  addStudent: (data: {
+    fullName: string;
+    email: string;
+    studentId?: string;
+    username?: string;
+    source?: 'online_registration' | 'admin_enrolled';
+    progress?: number;
+  }) => StudentRecord;
+  syncCurrentStudent: (data: {
+    fullName?: string;
+    email?: string;
+    studentId?: string;
+    progress?: number;
+  }) => void;
+  deleteStudent: (id: number) => void;
+  toggleStudentStatus: (id: number) => void;
+
   // Admin Actions
   addSubject: (data: { name: string; code: string; description: string }) => void;
   deleteSubject: (id: number) => void;
@@ -157,9 +185,6 @@ interface PlatformStoreContextType {
   deleteQuiz: (id: number) => void;
   addQuestion: (data: { text: string; type: string; points: number }) => void;
   deleteQuestion: (id: number) => void;
-  addStudent: (data: { fullName: string; email: string; studentId?: string; username?: string }) => void;
-  deleteStudent: (id: number) => void;
-  toggleStudentStatus: (id: number) => void;
   addManualResult: (data: {
     studentName: string;
     quizName: string;
@@ -198,7 +223,11 @@ const LS_PREFIX = 'lumenpath_store_';
 function getInitial<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(LS_PREFIX + key);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed as T;
+      if (!Array.isArray(parsed) && parsed != null) return parsed as T;
+    }
   } catch {
     // ignore
   }
@@ -215,25 +244,29 @@ function setStorage<T>(key: string, val: T) {
 
 export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<SubjectItem[]>(() =>
-    getInitial('subjects', [])
+    getInitial('subjects', DEMO_SUBJECTS as SubjectItem[])
   );
   const [lessons, setLessons] = useState<LessonItem[]>(() =>
-    getInitial('lessons', [])
+    getInitial('lessons', DEMO_LESSONS as LessonItem[])
   );
   const [quizzes, setQuizzes] = useState<QuizItem[]>(() =>
-    getInitial('quizzes', [])
+    getInitial('quizzes', DEMO_QUIZZES as unknown as QuizItem[])
   );
   const [questions, setQuestions] = useState<QuestionBankItem[]>(() =>
-    getInitial('questions', [])
+    getInitial('questions', DEMO_ADMIN_QUESTIONS as QuestionBankItem[])
   );
   const [results, setResults] = useState<QuizResultItem[]>(() =>
-    getInitial('results', [])
+    getInitial('results', DEMO_RESULTS as unknown as QuizResultItem[])
   );
   const [students, setStudents] = useState<StudentRecord[]>(() =>
-    getInitial('students', [])
+    getInitial('students', DEMO_ADMIN_STUDENTS as unknown as StudentRecord[])
   );
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>(() =>
-    getInitial('activity', [])
+    getInitial('activity', [
+      { id: 1, title: 'New student registration', message: 'Maya Chen registered via Student Portal.' },
+      { id: 2, title: 'Quiz milestone reached', message: 'Computer Fundamentals passed 80 attempts.' },
+      { id: 3, title: 'Lesson published', message: 'Web accessibility is now available to students.' },
+    ])
   );
 
   // Sync to storage
@@ -548,8 +581,15 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     addActivity('Question removed', 'Question was deleted from question bank.');
   };
 
-  // Admin: Students
-  const addStudent = (data: { fullName: string; email: string; studentId?: string; username?: string }) => {
+  // Students: Registration & Synchronization
+  const addStudent = (data: {
+    fullName: string;
+    email: string;
+    studentId?: string;
+    username?: string;
+    source?: 'online_registration' | 'admin_enrolled';
+    progress?: number;
+  }) => {
     const newId = Date.now();
     const stuId = data.studentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`;
     const newStu: StudentRecord = {
@@ -559,10 +599,63 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       email: data.email,
       username: data.username || data.fullName.toLowerCase().replace(/\s+/g, '.'),
       status: 'active',
-      progress: 0,
+      progress: data.progress ?? 0,
+      source: data.source || 'admin_enrolled',
+      registeredAt: 'Just now',
+      lastActive: 'Just now',
     };
     setStudents((prev) => [newStu, ...prev]);
-    addActivity('Student enrolled', `${data.fullName} (${stuId}) enrolled in the platform.`);
+    addActivity(
+      data.source === 'online_registration' ? 'New student registration' : 'Student enrolled',
+      `${data.fullName} (${stuId}) ${data.source === 'online_registration' ? 'registered via student portal' : 'enrolled by administrator'}.`
+    );
+    return newStu;
+  };
+
+  const syncCurrentStudent = (data: {
+    fullName?: string;
+    email?: string;
+    studentId?: string;
+    progress?: number;
+  }) => {
+    if (!data.email && !data.fullName) return;
+    setStudents((prev) => {
+      const matchIndex = prev.findIndex(
+        (s) =>
+          (data.email && s.email.toLowerCase() === data.email.toLowerCase()) ||
+          (data.studentId && s.studentId === data.studentId)
+      );
+      if (matchIndex >= 0) {
+        const updated = [...prev];
+        const existing = updated[matchIndex];
+        const newProgress = data.progress !== undefined ? data.progress : existing.progress;
+        if (existing.progress !== newProgress || (data.fullName && existing.fullName !== data.fullName)) {
+          updated[matchIndex] = {
+            ...existing,
+            fullName: data.fullName || existing.fullName,
+            progress: newProgress,
+            lastActive: 'Just now',
+          };
+          return updated;
+        }
+        return prev;
+      } else {
+        const newStu: StudentRecord = {
+          id: Date.now(),
+          fullName: data.fullName || 'Registered Student',
+          studentId: data.studentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`,
+          email: data.email || 'student@lumenpath.local',
+          username: data.fullName?.toLowerCase().replace(/\s+/g, '.') || 'student',
+          status: 'active',
+          progress: data.progress || 0,
+          source: 'online_registration',
+          registeredAt: 'Just now',
+          lastActive: 'Just now',
+        };
+        addActivity('New student registration', `${newStu.fullName} (${newStu.studentId}) registered from student dashboard.`);
+        return [newStu, ...prev];
+      }
+    });
   };
 
   const deleteStudent = (id: number) => {
@@ -703,6 +796,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
         addQuestion,
         deleteQuestion,
         addStudent,
+        syncCurrentStudent,
         deleteStudent,
         toggleStudentStatus,
         addManualResult,

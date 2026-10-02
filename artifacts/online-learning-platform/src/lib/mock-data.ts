@@ -324,10 +324,10 @@ export const DEMO_ADMIN_DASHBOARD = {
 };
 
 export const DEMO_ADMIN_STUDENTS = [
-  { id: 1, fullName: 'Maya Chen', studentId: 'STU-1042', email: 'maya.chen@lumenpath.local', status: 'active', progress: 68 },
-  { id: 2, fullName: 'Jordan Lee', studentId: 'STU-1048', email: 'jordan@lumenpath.local', status: 'active', progress: 92 },
-  { id: 3, fullName: 'Samira Patel', studentId: 'STU-1053', email: 'samira@lumenpath.local', status: 'active', progress: 45 },
-  { id: 4, fullName: 'Lucas Gomez', studentId: 'STU-1059', email: 'lucas@lumenpath.local', status: 'active', progress: 78 },
+  { id: 1, fullName: 'Maya Chen', studentId: 'STU-1042', email: 'maya.chen@lumenpath.local', status: 'active', progress: 68, source: 'online_registration', registeredAt: '2026-09-28', lastActive: 'Today' },
+  { id: 2, fullName: 'Jordan Lee', studentId: 'STU-1048', email: 'jordan@lumenpath.local', status: 'active', progress: 92, source: 'online_registration', registeredAt: '2026-09-29', lastActive: 'Yesterday' },
+  { id: 3, fullName: 'Samira Patel', studentId: 'STU-1053', email: 'samira@lumenpath.local', status: 'active', progress: 45, source: 'admin_enrolled', registeredAt: '2026-09-30', lastActive: '3 days ago' },
+  { id: 4, fullName: 'Lucas Gomez', studentId: 'STU-1059', email: 'lucas@lumenpath.local', status: 'active', progress: 78, source: 'admin_enrolled', registeredAt: '2026-10-01', lastActive: '5 days ago' },
 ];
 
 export const DEMO_ADMIN_QUESTIONS = [
