@@ -1,11 +1,37 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import {
+  DEFAULT_SUBJECTS,
+  DEFAULT_LESSONS,
+  DEFAULT_QUIZZES,
+  DEFAULT_QUESTIONS,
+  getSubjectLessons as filterSubjectLessonsHelper,
+  getSubjectQuestions as filterSubjectQuestionsHelper,
+  isQuestionUsedInQuiz,
+  questionBankItemToQuizQuestion,
+} from './curriculum-data';
+
+export {
+  DEFAULT_SUBJECTS,
+  DEFAULT_LESSONS,
+  DEFAULT_QUIZZES,
+  DEFAULT_QUESTIONS,
+  filterSubjectLessonsHelper,
+  filterSubjectQuestionsHelper,
+  isQuestionUsedInQuiz,
+  questionBankItemToQuizQuestion,
+};
 
 export interface SubjectItem {
   id: number;
   name: string;
   code: string;
   description: string;
+  instructor?: string;
+  instructorEmail?: string;
+  department?: string;
+  assignedTeacherIds?: string[];
+  assignedTeacherEmails?: string[];
   lessonCount: number;
   quizCount: number;
   progress: number;
@@ -22,6 +48,10 @@ export interface LessonItem {
   objectives: string[];
   completed: boolean;
   progress: number;
+  published?: boolean;
+  lessonType?: 'text' | 'pdf' | 'video';
+  durationMinutes?: number;
+  videoUrl?: string | null;
   materialUrl?: string | null;
   materialName?: string | null;
   materialSize?: string | null;
@@ -33,12 +63,28 @@ export interface LessonItem {
   status?: string;
 }
 
+export type QuestionType = 'multiple_choice' | 'true_false' | 'identification' | 'essay';
+export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+export type QuestionStatus = 'published' | 'draft';
+
+export interface QuestionBankChoice {
+  id: string;
+  value: string;
+  label: string;
+}
+
 export interface QuizQuestionItem {
   id: number;
   number?: number;
+  questionBankId?: number;
   text: string;
-  type?: string;
-  choices: { id: string; value: string; label: string }[];
+  type?: QuestionType | string;
+  points?: number;
+  choices?: { id: string; value: string; label: string }[];
+  correctAnswer?: string;
+  acceptedAnswers?: string[];
+  sampleAnswerRubric?: string;
+  explanation?: string;
 }
 
 export interface QuizItem {
@@ -63,9 +109,37 @@ export interface QuizItem {
 export interface QuestionBankItem {
   id: number;
   text: string;
-  type: string;
+  type: QuestionType;
+  subjectId: number;
+  subjectName: string;
+  lessonId?: number | null;
+  lessonTitle?: string | null;
+  choices?: QuestionBankChoice[];
+  correctAnswer?: string;
+  acceptedAnswers?: string[];
+  sampleAnswerRubric?: string;
+  explanation?: string;
   points: number;
-  status: string;
+  difficulty: DifficultyLevel;
+  status: QuestionStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  authorName?: string;
+}
+
+export interface StudentAnswerItem {
+  questionId: number;
+  questionText: string;
+  questionType: QuestionType | string;
+  studentAnswer: string;
+  correctAnswer?: string;
+  acceptedAnswers?: string[];
+  sampleAnswerRubric?: string;
+  pointsPossible: number;
+  pointsAwarded: number;
+  isCorrect?: boolean;
+  status: 'graded' | 'pending_manual_grading';
+  teacherFeedback?: string;
 }
 
 export interface QuizResultItem {
@@ -87,6 +161,12 @@ export interface QuizResultItem {
   submissionName?: string | null;
   submissionUrl?: string | null;
   submissionSize?: string | null;
+  answersDetail?: StudentAnswerItem[];
+  needsGrading?: boolean;
+  gradedBy?: string;
+  gradedAt?: string;
+  totalPointsEarned?: number;
+  totalPointsPossible?: number;
 }
 
 export interface ActiveQuizSession {
@@ -231,8 +311,9 @@ interface PlatformStoreContextType {
   deleteStudent: (id: number | string) => void;
   toggleStudentStatus: (id: number | string) => void;
 
-  // Admin Actions
-  addSubject: (data: { name: string; code: string; description: string }) => void;
+  // Subject & Lesson Management
+  addSubject: (data: { name: string; code: string; description: string; instructor?: string; department?: string }) => void;
+  updateSubject: (id: number, data: Partial<SubjectItem>) => void;
   deleteSubject: (id: number) => void;
   addLesson: (data: {
     title: string;
@@ -240,12 +321,20 @@ interface PlatformStoreContextType {
     description: string;
     content?: string;
     objectives?: string[];
+    lessonType?: 'text' | 'pdf' | 'video';
+    published?: boolean;
+    durationMinutes?: number;
+    videoUrl?: string | null;
     materialName?: string | null;
     materialUrl?: string | null;
     materialSize?: string | null;
     materialType?: string | null;
   }) => void;
+  updateLesson: (id: number, data: Partial<LessonItem>) => void;
+  toggleLessonPublish: (id: number) => void;
   deleteLesson: (id: number) => void;
+  getSubjectLessons: (subjectId: number, onlyPublished?: boolean, search?: string) => LessonItem[];
+  resetCurriculumToDefault: () => void;
   addQuiz: (data: {
     title: string;
     subjectId: number;
@@ -259,8 +348,32 @@ interface PlatformStoreContextType {
   }) => void;
   updateQuiz: (id: number, data: Partial<QuizItem>) => void;
   deleteQuiz: (id: number) => void;
-  addQuestion: (data: { text: string; type: string; points: number }) => void;
-  deleteQuestion: (id: number) => void;
+  addQuestion: (data: {
+    text: string;
+    type: QuestionType;
+    subjectId: number;
+    lessonId?: number | null;
+    choices?: QuestionBankChoice[];
+    correctAnswer?: string;
+    acceptedAnswers?: string[];
+    sampleAnswerRubric?: string;
+    explanation?: string;
+    points?: number;
+    difficulty?: DifficultyLevel;
+    status?: QuestionStatus;
+    authorName?: string;
+  }) => QuestionBankItem;
+  updateQuestion: (id: number, data: Partial<QuestionBankItem>) => void;
+  deleteQuestion: (id: number) => { success: boolean; reason?: string };
+  toggleQuestionPublish: (id: number) => void;
+  gradeEssaySubmission: (
+    resultId: number,
+    questionId: number,
+    pointsAwarded: number,
+    feedback?: string,
+    teacherName?: string
+  ) => void;
+  resetQuestionsToDefault: () => void;
   addManualResult: (data: {
     studentName: string;
     quizName: string;
@@ -316,42 +429,50 @@ function setStorage<T>(key: string, val: T) {
   }
 }
 
-export const DEFAULT_SUBJECTS: SubjectItem[] = [];
+const CURRICULUM_VERSION_KEY = 'lumenpath_curriculum_v6';
+const QUESTION_BANK_VERSION_KEY = 'lumenpath_question_bank_v4';
 
-export const DEFAULT_LESSONS: LessonItem[] = [];
-
-export const DEFAULT_QUIZZES: QuizItem[] = [];
-
-// One-time migration: clear any old cached demo data so platform starts empty
 try {
-  const cleared = localStorage.getItem('lumenpath_demo_cleared_v2');
-  if (!cleared) {
-    localStorage.removeItem('lumenpath_store_subjects');
-    localStorage.removeItem('lumenpath_store_lessons');
-    localStorage.removeItem('lumenpath_store_quizzes');
-    localStorage.removeItem('lumenpath_store_questions');
-    localStorage.removeItem('lumenpath_store_results');
-    localStorage.removeItem('lumenpath_store_activity');
-    localStorage.removeItem('lumenpath_store_active_sessions');
-    localStorage.setItem('lumenpath_demo_cleared_v2', '1');
+  const version = localStorage.getItem(QUESTION_BANK_VERSION_KEY);
+  if (!version) {
+    localStorage.setItem(LS_PREFIX + 'questions', JSON.stringify(DEFAULT_QUESTIONS));
+    localStorage.setItem(LS_PREFIX + 'quizzes', JSON.stringify(DEFAULT_QUIZZES));
+    localStorage.setItem(QUESTION_BANK_VERSION_KEY, '1');
+  }
+} catch {
+  // ignore
+}
+
+// Ensure curriculum is initialized with the 4 subjects and 25 subject-specific lessons
+try {
+  const version = localStorage.getItem(CURRICULUM_VERSION_KEY);
+  if (!version) {
+    localStorage.setItem(LS_PREFIX + 'subjects', JSON.stringify(DEFAULT_SUBJECTS));
+    localStorage.setItem(LS_PREFIX + 'lessons', JSON.stringify(DEFAULT_LESSONS));
+    localStorage.setItem(LS_PREFIX + 'quizzes', JSON.stringify(DEFAULT_QUIZZES));
+    localStorage.setItem(CURRICULUM_VERSION_KEY, '1');
   }
 } catch {
   // ignore
 }
 
 export function PlatformStoreProvider({ children }: { children: ReactNode }) {
-  const [subjects, setSubjects] = useState<SubjectItem[]>(() =>
-    getInitial<SubjectItem[]>('subjects', [])
-  );
-  const [lessons, setLessons] = useState<LessonItem[]>(() =>
-    getInitial<LessonItem[]>('lessons', [])
-  );
-  const [quizzes, setQuizzes] = useState<QuizItem[]>(() =>
-    getInitial<QuizItem[]>('quizzes', [])
-  );
-  const [questions, setQuestions] = useState<QuestionBankItem[]>(() =>
-    getInitial('questions', [])
-  );
+  const [subjects, setSubjects] = useState<SubjectItem[]>(() => {
+    const stored = getInitial<SubjectItem[]>('subjects', DEFAULT_SUBJECTS);
+    return stored && stored.length > 0 ? stored : DEFAULT_SUBJECTS;
+  });
+  const [lessons, setLessons] = useState<LessonItem[]>(() => {
+    const stored = getInitial<LessonItem[]>('lessons', DEFAULT_LESSONS);
+    return stored && stored.length > 0 ? stored : DEFAULT_LESSONS;
+  });
+  const [quizzes, setQuizzes] = useState<QuizItem[]>(() => {
+    const stored = getInitial<QuizItem[]>('quizzes', DEFAULT_QUIZZES);
+    return stored && stored.length > 0 ? stored : DEFAULT_QUIZZES;
+  });
+  const [questions, setQuestions] = useState<QuestionBankItem[]>(() => {
+    const stored = getInitial<QuestionBankItem[]>('questions', DEFAULT_QUESTIONS);
+    return stored && stored.length > 0 ? stored : DEFAULT_QUESTIONS;
+  });
   const [results, setResults] = useState<QuizResultItem[]>(() =>
     getInitial('results', [])
   );
@@ -691,7 +812,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Student: submit quiz
+  // Student: submit quiz with objective automatic scoring and essay manual grading support
   const submitQuiz = (
     quizId: number,
     answers: Record<number, string>,
@@ -702,18 +823,84 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   ) => {
     const quiz = quizzes.find((q) => q.id === quizId) || quizzes[0];
     const qList = quiz?.questions || [];
-    let correct = 0;
+
+    const answersDetail: StudentAnswerItem[] = [];
+    let totalPointsPossible = 0;
+    let totalPointsEarned = 0;
+    let correctCount = 0;
+    let hasEssayPending = false;
 
     qList.forEach((q) => {
-      const choice = q.choices?.[0]?.value || 'a';
-      const ans = answers[q.id];
-      if (ans && (ans === choice || ans === 'true' || ans === 'a')) {
-        correct++;
+      const qPoints = q.points && q.points > 0 ? q.points : 1;
+      totalPointsPossible += qPoints;
+      const studentAns = (answers[q.id] || '').trim();
+      const qType = (q.type || 'multiple_choice') as QuestionType;
+
+      let isCorrect = false;
+      let pointsAwarded = 0;
+      let status: 'graded' | 'pending_manual_grading' = 'graded';
+
+      if (qType === 'multiple_choice') {
+        const correctVal = (q.correctAnswer || q.choices?.[0]?.value || 'a').toLowerCase().trim();
+        const studentVal = studentAns.toLowerCase().trim();
+        const matchedChoice = q.choices?.find(
+          (c) => c.value.toLowerCase() === studentVal || c.id.toLowerCase() === studentVal || c.label.toLowerCase() === studentVal
+        );
+        const correctChoice = q.choices?.find(
+          (c) => c.value.toLowerCase() === correctVal || c.id.toLowerCase() === correctVal || c.label.toLowerCase() === correctVal
+        );
+
+        if (
+          (matchedChoice && correctChoice && matchedChoice.id === correctChoice.id) ||
+          studentVal === correctVal
+        ) {
+          isCorrect = true;
+          pointsAwarded = qPoints;
+          correctCount++;
+        }
+      } else if (qType === 'true_false') {
+        const correctVal = (q.correctAnswer || 'true').toLowerCase().trim();
+        const studentVal = studentAns.toLowerCase().trim();
+        if (studentVal === correctVal) {
+          isCorrect = true;
+          pointsAwarded = qPoints;
+          correctCount++;
+        }
+      } else if (qType === 'identification') {
+        const studentVal = studentAns.toLowerCase().trim();
+        const correctVal = (q.correctAnswer || '').toLowerCase().trim();
+        const accepted = (q.acceptedAnswers || []).map((a) => a.toLowerCase().trim());
+        if (studentVal && (studentVal === correctVal || accepted.includes(studentVal))) {
+          isCorrect = true;
+          pointsAwarded = qPoints;
+          correctCount++;
+        }
+      } else if (qType === 'essay') {
+        status = 'pending_manual_grading';
+        hasEssayPending = true;
+        pointsAwarded = 0;
+        isCorrect = false;
       }
+
+      totalPointsEarned += pointsAwarded;
+
+      answersDetail.push({
+        questionId: q.id,
+        questionText: q.text,
+        questionType: qType,
+        studentAnswer: studentAns,
+        correctAnswer: q.correctAnswer,
+        acceptedAnswers: q.acceptedAnswers,
+        sampleAnswerRubric: q.sampleAnswerRubric,
+        pointsPossible: qPoints,
+        pointsAwarded,
+        isCorrect,
+        status,
+      });
     });
 
-    const total = Math.max(1, qList.length);
-    const percentage = Math.round((correct / total) * 100);
+    const totalPossible = Math.max(1, totalPointsPossible);
+    const percentage = Math.round((totalPointsEarned / totalPossible) * 100);
     const passingScore = quiz?.passingScore ?? 70;
     const passed = percentage >= passingScore;
     const submissionStatus: 'Submitted' | 'Auto-Submitted – Time Expired' = isTimeExpired
@@ -730,8 +917,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       quizName: quiz?.title || 'Quiz Assessment',
       subjectName: quiz?.subjectName || 'General',
       studentName,
-      correctAnswers: correct,
-      incorrectAnswers: total - correct,
+      correctAnswers: correctCount,
+      incorrectAnswers: Math.max(0, qList.length - correctCount),
       passed,
       percentage,
       dateTaken: now.toISOString(),
@@ -743,6 +930,10 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       submissionName: submission?.name || null,
       submissionUrl: submission?.url || null,
       submissionSize: submission?.size || null,
+      answersDetail,
+      needsGrading: hasEssayPending,
+      totalPointsEarned,
+      totalPointsPossible,
     };
 
     setResults((prev) => [newResult, ...prev]);
@@ -780,14 +971,16 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  // Admin: Subjects
-  const addSubject = (data: { name: string; code: string; description: string }) => {
+  // Subjects
+  const addSubject = (data: { name: string; code: string; description: string; instructor?: string; department?: string }) => {
     const newId = Date.now();
     const newSub: SubjectItem = {
       id: newId,
       name: data.name,
       code: data.code.toUpperCase(),
       description: data.description,
+      instructor: data.instructor || 'Instructor',
+      department: data.department,
       lessonCount: 0,
       quizCount: 0,
       progress: 0,
@@ -797,43 +990,64 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     addActivity('New subject created', `Subject "${data.name}" (${data.code}) was added to curriculum.`);
   };
 
-  const deleteSubject = (id: number) => {
-    const target = subjects.find((s) => s.id === id);
-    setSubjects((prev) => prev.filter((s) => s.id !== id));
-    if (target) {
-      addActivity('Subject removed', `Subject "${target.name}" was removed from the catalog.`);
+  const updateSubject = (id: number, data: Partial<SubjectItem>) => {
+    setSubjects((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...data } : s))
+    );
+    if (data.name) {
+      setLessons((prev) =>
+        prev.map((l) => (l.subjectId === id ? { ...l, subjectName: data.name! } : l))
+      );
     }
   };
 
-  // Admin: Lessons
+  const deleteSubject = (id: number) => {
+    const target = subjects.find((s) => s.id === id);
+    setSubjects((prev) => prev.filter((s) => s.id !== id));
+    setLessons((prev) => prev.filter((l) => l.subjectId !== id));
+    if (target) {
+      addActivity('Subject removed', `Subject "${target.name}" and its associated lessons were removed.`);
+    }
+  };
+
+  // Lessons
   const addLesson = (data: {
     title: string;
     subjectId: number;
     description: string;
     content?: string;
     objectives?: string[];
+    lessonType?: 'text' | 'pdf' | 'video';
+    published?: boolean;
+    durationMinutes?: number;
+    videoUrl?: string | null;
     materialName?: string | null;
     materialUrl?: string | null;
     materialSize?: string | null;
     materialType?: string | null;
   }) => {
-    const parentSub = subjects.find((s) => s.id === Number(data.subjectId));
+    const targetSubjectId = Number(data.subjectId);
+    const parentSub = subjects.find((s) => s.id === targetSubjectId);
     const newId = Date.now();
     const newLes: LessonItem = {
       id: newId,
-      subjectId: Number(data.subjectId),
+      subjectId: targetSubjectId,
       subjectName: parentSub ? parentSub.name : 'General',
       title: data.title,
       description: data.description,
       content:
         data.content ||
-        `<p>${data.description}</p><p>Welcome to this lesson. Review the concepts and download any attached materials below.</p>`,
+        `<p>${data.description}</p><p>Welcome to this lesson. Review the concepts and study materials below.</p>`,
       objectives:
         data.objectives && data.objectives.length > 0
           ? data.objectives
-          : ['Understand key concepts', 'Apply knowledge to practice'],
+          : ['Understand core concepts', 'Apply knowledge to practice'],
       completed: false,
       progress: 0,
+      published: data.published !== false,
+      lessonType: data.lessonType || 'text',
+      durationMinutes: data.durationMinutes || 25,
+      videoUrl: data.videoUrl || null,
       materialName: data.materialName || null,
       materialUrl: data.materialUrl || null,
       materialSize: data.materialSize || null,
@@ -844,12 +1058,43 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     // increment subject lesson count
     setSubjects((prev) =>
       prev.map((s) =>
-        s.id === Number(data.subjectId)
+        s.id === targetSubjectId
           ? { ...s, lessonCount: (s.lessonCount || 0) + 1 }
           : s
       )
     );
-    addActivity('Lesson published', `"${data.title}" was added under ${parentSub?.name ?? 'General'}.`);
+    addActivity('Lesson added', `"${data.title}" was added under ${parentSub?.name ?? 'Subject'}.`);
+  };
+
+  const updateLesson = (id: number, data: Partial<LessonItem>) => {
+    setLessons((prev) =>
+      prev.map((l) => {
+        if (l.id === id) {
+          const updatedSubjectId = data.subjectId !== undefined ? Number(data.subjectId) : l.subjectId;
+          const parentSub = subjects.find((s) => s.id === updatedSubjectId);
+          return {
+            ...l,
+            ...data,
+            subjectId: updatedSubjectId,
+            subjectName: parentSub ? parentSub.name : (data.subjectName || l.subjectName),
+          };
+        }
+        return l;
+      })
+    );
+    addActivity('Lesson updated', `Lesson was updated successfully.`);
+  };
+
+  const toggleLessonPublish = (id: number) => {
+    setLessons((prev) =>
+      prev.map((l) => {
+        if (l.id === id) {
+          const nextPublished = l.published === false;
+          return { ...l, published: nextPublished };
+        }
+        return l;
+      })
+    );
   };
 
   const deleteLesson = (id: number) => {
@@ -865,6 +1110,21 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       );
       addActivity('Lesson deleted', `Lesson "${target.title}" was deleted.`);
     }
+  };
+
+  const getSubjectLessons = (subjectId: number, onlyPublished?: boolean, search?: string) => {
+    return filterSubjectLessonsHelper(lessons, subjectId, { onlyPublished, search });
+  };
+
+  const resetCurriculumToDefault = () => {
+    setSubjects(DEFAULT_SUBJECTS);
+    setLessons(DEFAULT_LESSONS);
+    setQuizzes(DEFAULT_QUIZZES);
+    localStorage.setItem(LS_PREFIX + 'subjects', JSON.stringify(DEFAULT_SUBJECTS));
+    localStorage.setItem(LS_PREFIX + 'lessons', JSON.stringify(DEFAULT_LESSONS));
+    localStorage.setItem(LS_PREFIX + 'quizzes', JSON.stringify(DEFAULT_QUIZZES));
+    localStorage.setItem(CURRICULUM_VERSION_KEY, '1');
+    addActivity('Curriculum reset', 'Default subjects and lessons restored.');
   };
 
   // Admin: Quizzes
@@ -955,23 +1215,147 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Admin: Questions
-  const addQuestion = (data: { text: string; type: string; points: number }) => {
+  // Question Bank Management
+  const addQuestion = (data: {
+    text: string;
+    type: QuestionType;
+    subjectId: number;
+    lessonId?: number | null;
+    choices?: QuestionBankChoice[];
+    correctAnswer?: string;
+    acceptedAnswers?: string[];
+    sampleAnswerRubric?: string;
+    explanation?: string;
+    points?: number;
+    difficulty?: DifficultyLevel;
+    status?: QuestionStatus;
+    authorName?: string;
+  }): QuestionBankItem => {
+    const parentSub = subjects.find((s) => s.id === Number(data.subjectId));
+    const parentLesson = data.lessonId ? lessons.find((l) => l.id === Number(data.lessonId)) : null;
     const newId = Date.now();
     const newQ: QuestionBankItem = {
       id: newId,
-      text: data.text,
+      text: data.text.trim(),
       type: data.type || 'multiple_choice',
-      points: Number(data.points) || 1,
-      status: 'Published',
+      subjectId: Number(data.subjectId),
+      subjectName: parentSub ? parentSub.name : 'General',
+      lessonId: data.lessonId ? Number(data.lessonId) : null,
+      lessonTitle: parentLesson ? parentLesson.title : null,
+      choices: data.choices || (data.type === 'true_false' ? [
+        { id: 'true', value: 'true', label: 'True' },
+        { id: 'false', value: 'false', label: 'False' }
+      ] : []),
+      correctAnswer: data.correctAnswer || (data.type === 'true_false' ? 'true' : ''),
+      acceptedAnswers: data.acceptedAnswers || [],
+      sampleAnswerRubric: data.sampleAnswerRubric || '',
+      explanation: data.explanation || '',
+      points: Number(data.points) > 0 ? Number(data.points) : 1,
+      difficulty: data.difficulty || 'medium',
+      status: data.status || 'published',
+      createdAt: new Date().toISOString().split('T')[0],
+      authorName: data.authorName || 'Instructor',
     };
-    setQuestions((prev) => [...prev, newQ]);
-    addActivity('Question added', `New question added to bank: "${data.text.slice(0, 30)}..."`);
+    setQuestions((prev) => [newQ, ...prev]);
+    addActivity('Question added', `New ${newQ.type.replace('_', ' ')} question added under ${newQ.subjectName}.`);
+    return newQ;
   };
 
-  const deleteQuestion = (id: number) => {
+  const updateQuestion = (id: number, data: Partial<QuestionBankItem>) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === id) {
+          const parentSub = data.subjectId ? subjects.find((s) => s.id === Number(data.subjectId)) : undefined;
+          const parentLesson = data.lessonId !== undefined ? lessons.find((l) => l.id === Number(data.lessonId)) : undefined;
+          return {
+            ...q,
+            ...data,
+            subjectName: parentSub ? parentSub.name : (data.subjectName || q.subjectName),
+            lessonTitle: parentLesson ? parentLesson.title : (data.lessonTitle || q.lessonTitle),
+            updatedAt: new Date().toISOString().split('T')[0],
+          };
+        }
+        return q;
+      })
+    );
+    addActivity('Question updated', `Question #${id} was updated.`);
+  };
+
+  const deleteQuestion = (id: number): { success: boolean; reason?: string } => {
+    const usage = isQuestionUsedInQuiz(quizzes, id);
+    if (usage.used) {
+      return {
+        success: false,
+        reason: `Cannot delete question: It is currently used in active quiz "${usage.quizTitles.join(', ')}". Unpublish or remove it from the quiz first to preserve student assessment records.`,
+      };
+    }
     setQuestions((prev) => prev.filter((q) => q.id !== id));
-    addActivity('Question removed', 'Question was deleted from question bank.');
+    addActivity('Question removed', `Question #${id} was deleted from question bank.`);
+    return { success: true };
+  };
+
+  const toggleQuestionPublish = (id: number) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === id) {
+          const nextStatus: QuestionStatus = q.status === 'published' ? 'draft' : 'published';
+          return { ...q, status: nextStatus };
+        }
+        return q;
+      })
+    );
+  };
+
+  const gradeEssaySubmission = (
+    resultId: number,
+    questionId: number,
+    pointsAwarded: number,
+    feedback?: string,
+    teacherName?: string
+  ) => {
+    setResults((prev) =>
+      prev.map((r) => {
+        if (r.id !== resultId) return r;
+        const details = (r.answersDetail || []).map((ans) => {
+          if (ans.questionId === questionId) {
+            return {
+              ...ans,
+              pointsAwarded: Math.max(0, Math.min(ans.pointsPossible, Number(pointsAwarded))),
+              isCorrect: Number(pointsAwarded) >= ans.pointsPossible * 0.7,
+              status: 'graded' as const,
+              teacherFeedback: feedback || ans.teacherFeedback,
+            };
+          }
+          return ans;
+        });
+
+        const totalPossible = details.reduce((sum, d) => sum + (d.pointsPossible || 1), 0);
+        const totalEarned = details.reduce((sum, d) => sum + (d.pointsAwarded || 0), 0);
+        const hasPending = details.some((d) => d.status === 'pending_manual_grading');
+        const percentage = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : 0;
+        const passed = percentage >= (r.passingScore ?? 70);
+
+        return {
+          ...r,
+          answersDetail: details,
+          needsGrading: hasPending,
+          totalPointsEarned: totalEarned,
+          totalPointsPossible: totalPossible,
+          percentage,
+          passed,
+          gradedBy: teacherName || 'Instructor',
+          gradedAt: new Date().toISOString(),
+        };
+      })
+    );
+    addActivity('Essay Graded', `Instructor evaluated student response.`);
+  };
+
+  const resetQuestionsToDefault = () => {
+    setQuestions(DEFAULT_QUESTIONS);
+    localStorage.setItem(LS_PREFIX + 'questions', JSON.stringify(DEFAULT_QUESTIONS));
+    localStorage.setItem(QUESTION_BANK_VERSION_KEY, '1');
+    addActivity('Question Bank reset', 'Default curriculum questions restored.');
   };
 
   // Students: Registration, Synchronization & Login Activity Tracking
@@ -1483,14 +1867,23 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
         saveDraftAnswers,
         clearActiveSession,
         addSubject,
+        updateSubject,
         deleteSubject,
         addLesson,
+        updateLesson,
+        toggleLessonPublish,
         deleteLesson,
+        getSubjectLessons,
+        resetCurriculumToDefault,
         addQuiz,
         updateQuiz,
         deleteQuiz,
         addQuestion,
+        updateQuestion,
         deleteQuestion,
+        toggleQuestionPublish,
+        gradeEssaySubmission,
+        resetQuestionsToDefault,
         addStudent,
         syncCurrentStudent,
         recordStudentLogin,

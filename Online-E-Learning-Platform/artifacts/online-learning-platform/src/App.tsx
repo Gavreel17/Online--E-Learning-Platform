@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthProvider, useAuth, DEFAULT_STUDENT, DEFAULT_ADMIN } from '@/lib/auth-context';
-import { PlatformStoreProvider, usePlatformStore, type ActiveQuizSession } from '@/lib/platform-store';
+import {
+  PlatformStoreProvider,
+  usePlatformStore,
+  type ActiveQuizSession,
+  type QuestionBankItem,
+  type QuestionType,
+  type DifficultyLevel,
+  type QuestionStatus,
+  type QuestionBankChoice,
+  type QuizQuestionItem,
+} from '@/lib/platform-store';
+import { isQuestionUsedInQuiz, questionBankItemToQuizQuestion } from '@/lib/curriculum-data';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeProvider } from '@/components/theme-provider';
 
@@ -861,7 +872,10 @@ function SubjectsPage() {
 
   const filtered = subjects.filter((s) => `${s.name} ${s.code} ${s.description}`.toLowerCase().includes(search.toLowerCase()));
   const activeSubject = selectedSubjectId ? subjects.find((s) => s.id === selectedSubjectId) : null;
-  const activeLessons = selectedSubjectId ? lessons.filter((l) => l.subjectId === selectedSubjectId) : [];
+  // STRICT subject filtering: only lessons that belong to this exact subject
+  const activeLessons = selectedSubjectId
+    ? lessons.filter((l) => l.subjectId === Number(selectedSubjectId) && l.published !== false)
+    : [];
   const activeQuizzes = selectedSubjectId ? quizzes.filter((q) => q.subjectId === selectedSubjectId) : [];
 
   return (
@@ -895,40 +909,62 @@ function SubjectsPage() {
 
       {activeSubject ? (
         <div className="space-y-6">
+          {/* Subject Header */}
           <div className="rounded-2xl border border-card-border bg-card p-6 md:p-8">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <span className="rounded-lg bg-secondary px-2.5 py-1 font-mono-ui text-xs font-bold text-secondary-foreground">
-                  {activeSubject.code}
-                </span>
-                <h2 className="mt-3 font-display text-2xl font-extrabold">{activeSubject.name}</h2>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{activeSubject.description}</p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-lg bg-secondary px-2.5 py-1 font-mono-ui text-xs font-bold text-secondary-foreground">
+                    {activeSubject.code}
+                  </span>
+                  <span className="rounded-lg bg-teal-700/10 px-2.5 py-1 text-[11px] font-bold text-teal-700">
+                    {activeLessons.length} Lessons · {activeQuizzes.length} Quizzes
+                  </span>
+                </div>
+                <h2 className="mt-4 font-display text-2xl font-extrabold">{activeSubject.name}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{activeSubject.description}</p>
+                {activeSubject.instructor && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-bold text-foreground">Instructor:</span> {activeSubject.instructor}
+                    {activeSubject.department ? ` · ${activeSubject.department}` : ''}
+                  </p>
+                )}
               </div>
               <Link
                 href={`/student/lessons?subject=${activeSubject.id}`}
-                className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-accent"
+                className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-accent shadow-[2px_2px_0_hsl(var(--accent)/0.4)] hover:-translate-y-0.5 transition-transform"
               >
-                Explore all lessons in this subject →
+                Open all lessons →
               </Link>
             </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
+            {/* Lessons Panel */}
             <div className="rounded-2xl border border-card-border bg-card p-6">
-              <h3 className="font-display text-lg font-bold">Lessons ({activeLessons.length})</h3>
+              <h3 className="font-display text-lg font-bold">Lessons in {activeSubject.name} ({activeLessons.length})</h3>
               <div className="mt-4 divide-y divide-border">
                 {activeLessons.length === 0 ? (
-                  <p className="py-4 text-xs text-muted-foreground">No lessons currently scheduled in this subject.</p>
+                  <p className="py-4 text-xs text-muted-foreground">No published lessons in this subject yet.</p>
                 ) : (
-                  activeLessons.map((l) => (
+                  activeLessons.map((l, idx) => (
                     <div key={l.id} className="flex items-center justify-between py-3">
-                      <div>
-                        <Link href={`/student/lessons/${l.id}`} className="text-sm font-bold hover:text-teal-700">
-                          {l.title}
-                        </Link>
-                        <p className="text-xs text-muted-foreground">{l.completed ? 'Completed' : `${l.progress}% progress`}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="shrink-0 grid size-6 place-items-center rounded-md bg-secondary text-[10px] font-bold text-secondary-foreground">
+                            {idx + 1}
+                          </span>
+                          <Link href={`/student/lessons/${l.id}`} className="truncate text-sm font-bold hover:text-teal-700">
+                            {l.title}
+                          </Link>
+                        </div>
+                        <p className="mt-0.5 truncate pl-8 text-[11px] text-muted-foreground">
+                          {l.lessonType === 'video' ? '🎥 Video' : l.lessonType === 'pdf' ? '📄 PDF' : '📝 Text'}
+                          {l.durationMinutes ? ` · ${l.durationMinutes} min` : ''}
+                          {l.completed ? ' · ✅ Done' : ''}
+                        </p>
                       </div>
-                      <Link href={`/student/lessons/${l.id}`} className="text-xs font-bold text-teal-700">
+                      <Link href={`/student/lessons/${l.id}`} className="ml-3 shrink-0 text-xs font-bold text-teal-700">
                         {l.completed ? 'Review' : 'Study →'}
                       </Link>
                     </div>
@@ -937,6 +973,7 @@ function SubjectsPage() {
               </div>
             </div>
 
+            {/* Quizzes Panel */}
             <div className="rounded-2xl border border-card-border bg-card p-6">
               <h3 className="font-display text-lg font-bold">Quizzes ({activeQuizzes.length})</h3>
               <div className="mt-4 divide-y divide-border">
@@ -1004,14 +1041,33 @@ function SubjectsPage() {
 
 function LessonsPage() {
   const { lessons, completeLesson, subjects } = usePlatformStore();
+  const { role } = useAuth();
   const { toast } = useToast();
   const [filter, setFilter] = useState<'all' | 'incomplete' | 'completed'>('all');
-  const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [subjectFilter, setSubjectFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search).get('subject');
+      if (sp) return sp;
+    }
+    return 'all';
+  });
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search).get('subject');
+      if (sp) setSubjectFilter(sp);
+    }
+  }, []);
+  const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
+
   const shown = lessons.filter((l) => {
+    // Teachers and admins see all lessons; students only see published lessons
+    if (!isTeacherOrAdmin && l.published === false) return false;
     const matchFilter = filter === 'all' || (filter === 'completed' ? l.completed : !l.completed);
+    // STRICT subject filtering by subjectId
     const matchSubject = subjectFilter === 'all' || l.subjectId === Number(subjectFilter);
+    // Search only within selected subject (or all if 'all' selected)
     const matchSearch = `${l.title} ${l.description} ${l.subjectName}`.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSubject && matchSearch;
   });
@@ -1064,19 +1120,30 @@ function LessonsPage() {
           />
         </div>
 
-        <select
-          value={subjectFilter}
-          onChange={(e) => setSubjectFilter(e.target.value)}
-          className="rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-primary outline-none"
-          data-testid="select-lessons-subject"
-        >
-          <option value="all">All subjects</option>
+        {/* Subject tab filter */}
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => { setSubjectFilter('all'); setSearch(''); }}
+            className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+              subjectFilter === 'all' ? 'bg-primary text-accent' : 'border border-border bg-card text-muted-foreground hover:text-foreground'
+            }`}
+            data-testid="button-filter-subject-all"
+          >
+            All Subjects
+          </button>
           {subjects.map((s) => (
-            <option key={s.id} value={s.id}>
+            <button
+              key={s.id}
+              onClick={() => { setSubjectFilter(String(s.id)); setSearch(''); }}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
+                subjectFilter === String(s.id) ? 'bg-teal-700 text-white' : 'border border-border bg-card text-muted-foreground hover:text-foreground'
+              }`}
+              data-testid={`button-filter-subject-${s.id}`}
+            >
               {s.name}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
       {shown.length === 0 ? (
@@ -1183,7 +1250,14 @@ function LessonDetail() {
   const [, setLocation] = useLocation();
 
   const l = lessons.find((item) => item.id === lessonId) || lessons[0];
-  const nextLesson = lessons.find((item) => item.id > lessonId) || null;
+  // Next lesson must be within the SAME subject — strict subject isolation
+  const sameSubjectLessons = l
+    ? lessons.filter((item) => item.subjectId === l.subjectId && item.published !== false).sort((a, b) => a.id - b.id)
+    : [];
+  const currentIdx = sameSubjectLessons.findIndex((item) => item.id === lessonId);
+  const nextLesson = currentIdx >= 0 && currentIdx < sameSubjectLessons.length - 1
+    ? sameSubjectLessons[currentIdx + 1]
+    : null;
 
   if (!l) {
     return (
@@ -1735,6 +1809,18 @@ function QuizDetail() {
           </div>
         )}
 
+        {result.needsGrading && (
+          <div className="rounded-2xl border border-teal-700/30 bg-teal-700/10 p-4 text-left flex items-start gap-3">
+            <Sparkles className="size-5 text-teal-700 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm text-teal-800 dark:text-teal-300">Objective Questions Scored — Essay Pending Review</p>
+              <p className="text-xs text-teal-700/90 dark:text-teal-400 mt-0.5">
+                Your multiple choice, true/false, and short answer responses have been graded automatically. Your essay submission has been received and is awaiting instructor grading and rubric feedback.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4 text-left sm:grid-cols-3">
           <div className="rounded-xl bg-secondary p-4">
             <p className="text-xs text-muted-foreground">Correct answers</p>
@@ -1931,57 +2017,116 @@ function QuizDetail() {
             <div className="flex gap-3">
               <span className="font-mono-ui text-xs font-bold text-teal-700">0{question.number ?? i + 1}</span>
               <div className="flex-1">
-                <p className="font-bold leading-6">{question.text}</p>
-                <div className="mt-5 grid gap-2">
-                  {(question.choices ?? []).map((choice: any) => (
-                    <label
-                      key={choice.id}
-                      className={`flex items-center gap-3 rounded-xl border p-3.5 text-sm transition-colors ${
-                        isLocked
-                          ? 'cursor-not-allowed opacity-80'
-                          : 'cursor-pointer hover:bg-muted'
-                      } ${
-                        answers[question.id] === choice.value ? 'border-primary bg-secondary' : 'border-border'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={`q-${question.id}`}
-                        value={choice.value}
-                        checked={answers[question.id] === choice.value}
-                        disabled={isLocked}
-                        onChange={() => handleSelectAnswer(question.id, choice.value)}
-                        className="accent-teal-700 disabled:cursor-not-allowed"
-                        data-testid={`input-answer-${question.id}-${choice.id}`}
-                      />
-                      {choice.label}
-                    </label>
-                  ))}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-bold leading-6 text-foreground">{question.text}</p>
+                  <span className="font-mono-ui text-[11px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800 shrink-0">
+                    {question.points || 1} {question.points === 1 ? 'pt' : 'pts'}
+                  </span>
                 </div>
+
+                {/* Multiple Choice */}
+                {(!question.type || question.type === 'multiple_choice') && (
+                  <div className="mt-5 grid gap-2">
+                    {(question.choices ?? []).map((choice: any) => (
+                      <label
+                        key={choice.id}
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 text-sm transition-colors ${
+                          isLocked
+                            ? 'cursor-not-allowed opacity-80'
+                            : 'cursor-pointer hover:bg-muted'
+                        } ${
+                          answers[question.id] === choice.value ? 'border-primary bg-secondary' : 'border-border'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`q-${question.id}`}
+                          value={choice.value}
+                          checked={answers[question.id] === choice.value}
+                          disabled={isLocked}
+                          onChange={() => handleSelectAnswer(question.id, choice.value)}
+                          className="accent-teal-700 disabled:cursor-not-allowed"
+                          data-testid={`input-answer-${question.id}-${choice.id}`}
+                        />
+                        {choice.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* True or False */}
+                {question.type === 'true_false' && (
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    {[
+                      { val: 'true', label: 'True' },
+                      { val: 'false', label: 'False' },
+                    ].map((opt) => (
+                      <label
+                        key={opt.val}
+                        className={`flex items-center justify-center gap-2 rounded-xl border py-3 px-4 text-sm font-bold transition-all ${
+                          isLocked
+                            ? 'cursor-not-allowed opacity-80'
+                            : 'cursor-pointer hover:border-teal-700'
+                        } ${
+                          answers[question.id] === opt.val
+                            ? 'border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-200'
+                            : 'border-border bg-card text-foreground'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`q-${question.id}`}
+                          value={opt.val}
+                          checked={answers[question.id] === opt.val}
+                          disabled={isLocked}
+                          onChange={() => handleSelectAnswer(question.id, opt.val)}
+                          className="accent-teal-700"
+                          data-testid={`input-answer-${question.id}-${opt.val}`}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Identification / Short Answer */}
+                {question.type === 'identification' && (
+                  <div className="mt-5 space-y-1.5">
+                    <label className="text-xs font-bold text-muted-foreground">Your Answer (Case-Insensitive):</label>
+                    <input
+                      type="text"
+                      disabled={isLocked}
+                      value={answers[question.id] || ''}
+                      onChange={(e) => handleSelectAnswer(question.id, e.target.value)}
+                      placeholder="Type your answer here..."
+                      className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid={`input-answer-${question.id}`}
+                    />
+                  </div>
+                )}
+
+                {/* Essay */}
+                {question.type === 'essay' && (
+                  <div className="mt-5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-muted-foreground">Your Response (Evaluated by Instructor):</label>
+                      <span className="text-[11px] text-teal-700 font-semibold font-mono-ui">Manual Grading</span>
+                    </div>
+                    <textarea
+                      rows={4}
+                      disabled={isLocked}
+                      value={answers[question.id] || ''}
+                      onChange={(e) => handleSelectAnswer(question.id, e.target.value)}
+                      placeholder="Write your comprehensive answer here..."
+                      className="w-full rounded-xl border border-border bg-background p-3.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid={`input-answer-${question.id}`}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </fieldset>
         ))}
-      </div>
-
-      {/* Optional Student Work / Scratchpad / Proof Upload */}
-      <div className={`rounded-2xl border border-dashed border-border bg-card p-6 space-y-3 ${isLocked ? 'opacity-60 pointer-events-none' : ''}`}>
-        <div>
-          <h3 className="font-display text-sm font-bold flex items-center gap-2">
-            <UploadCloud className="size-4 text-teal-700" /> Upload Your Work / Solutions (Optional)
-          </h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Attach handwritten calculations, diagrams, or code file to accompany your quiz submission.
-          </p>
-        </div>
-        <FileUploadDropZone
-          label="Attach work proof"
-          hint="Upload PDF, Image, Code, or Text file (Max 25MB)"
-          file={quizSubmission}
-          onFileChange={isLocked ? () => {} : setQuizSubmission}
-          id="quiz-student-upload"
-          compact
-        />
       </div>
 
       {/* Early Submission Button */}
@@ -2912,10 +3057,13 @@ function AdminDashboardPreview() {
 
 function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 'quizzes' | 'questions' | 'results' }) {
   const store = usePlatformStore();
+  const { role, user } = useAuth();
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'registered' | 'active' | 'inactive'>('all');
+  const [lessonSubjectFilter, setLessonSubjectFilter] = useState<string>('all');
+  const [quizSubjectFilter, setQuizSubjectFilter] = useState<string>('all');
   const [activitySearch, setActivitySearch] = useState('');
 
   const filteredActivities = useMemo(() => {
@@ -2938,8 +3086,44 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
   // Form states
   const [studentForm, setStudentForm] = useState({ fullName: '', email: '', studentId: '', username: '' });
   const [subjectForm, setSubjectForm] = useState({ name: '', code: '', description: '' });
-  const [lessonForm, setLessonForm] = useState({ title: '', subjectId: store.subjects[0]?.id || 1, description: '' });
+  const [lessonForm, setLessonForm] = useState({ title: '', subjectId: store.subjects[0]?.id || 1, description: '', lessonType: 'text' as 'text' | 'pdf' | 'video', published: true });
   const [lessonFile, setLessonFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
+
+  // Edit lesson state
+  const [editingLesson, setEditingLesson] = useState<any | null>(null);
+  const [editLessonForm, setEditLessonForm] = useState({
+    title: '',
+    subjectId: store.subjects[0]?.id || 1,
+    description: '',
+    lessonType: 'text' as 'text' | 'pdf' | 'video',
+    published: true,
+  });
+  const [editLessonFile, setEditLessonFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
+
+  const handleEditLessonSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLesson || !editLessonForm.title) return;
+    store.updateLesson(editingLesson.id, {
+      title: editLessonForm.title,
+      subjectId: Number(editLessonForm.subjectId),
+      description: editLessonForm.description,
+      lessonType: editLessonForm.lessonType,
+      published: editLessonForm.published,
+      materialName: editLessonFile ? editLessonFile.name : editingLesson.materialName,
+      materialUrl: editLessonFile ? editLessonFile.url : editingLesson.materialUrl,
+      materialSize: editLessonFile ? editLessonFile.size : editingLesson.materialSize,
+      materialType: editLessonFile ? editLessonFile.type : editingLesson.materialType,
+    });
+    setEditingLesson(null);
+    Swal.fire({
+      icon: 'success',
+      title: 'Lesson Updated!',
+      text: `"${editLessonForm.title}" has been saved.`,
+      confirmButtonColor: '#0f766e',
+      timer: 2000,
+      timerProgressBar: true,
+    });
+  };
 
   const [quizForm, setQuizForm] = useState({ title: '', subjectId: store.subjects[0]?.id || 1, passingScore: 70, timeLimit: 15, description: '' });
   const [quizFile, setQuizFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
@@ -2984,7 +3168,65 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
     });
   };
 
-  const [questionForm, setQuestionForm] = useState({ text: '', type: 'multiple_choice', points: 1 });
+  // Question Bank filters & search
+  const [questionSubjectFilter, setQuestionSubjectFilter] = useState<string>('all');
+  const [questionLessonFilter, setQuestionLessonFilter] = useState<string>('all');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState<string>('all');
+  const [questionDifficultyFilter, setQuestionDifficultyFilter] = useState<string>('all');
+  const [questionStatusFilter, setQuestionStatusFilter] = useState<string>('all');
+
+  const [viewingQuestion, setViewingQuestion] = useState<QuestionBankItem | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<QuestionBankItem | null>(null);
+
+  // Default choices for multiple choice
+  const defaultChoices: QuestionBankChoice[] = [
+    { id: 'a', value: 'a', label: '' },
+    { id: 'b', value: 'b', label: '' },
+    { id: 'c', value: 'c', label: '' },
+    { id: 'd', value: 'd', label: '' },
+  ];
+
+  // Add Question form
+  const [qForm, setQForm] = useState({
+    text: '',
+    type: 'multiple_choice' as QuestionType,
+    subjectId: store.subjects[0]?.id || 1,
+    lessonId: '' as string,
+    points: 2,
+    difficulty: 'medium' as DifficultyLevel,
+    status: 'published' as QuestionStatus,
+    choices: defaultChoices,
+    correctAnswer: 'a',
+    acceptedAnswersStr: '',
+    sampleAnswerRubric: '',
+    explanation: '',
+  });
+
+  // Edit Question form
+  const [editQForm, setEditQForm] = useState({
+    text: '',
+    type: 'multiple_choice' as QuestionType,
+    subjectId: store.subjects[0]?.id || 1,
+    lessonId: '' as string,
+    points: 2,
+    difficulty: 'medium' as DifficultyLevel,
+    status: 'published' as QuestionStatus,
+    choices: defaultChoices,
+    correctAnswer: 'a',
+    acceptedAnswersStr: '',
+    sampleAnswerRubric: '',
+    explanation: '',
+  });
+
+  // Question Bank Picker for Quizzes
+  const [showQuestionBankPicker, setShowQuestionBankPicker] = useState<boolean>(false);
+  const [pickerTarget, setPickerTarget] = useState<'create' | 'edit'>('create');
+  const [selectedBankQuestionIds, setSelectedBankQuestionIds] = useState<number[]>([]);
+  const [pickerSearch, setPickerSearch] = useState<string>('');
+  const [pickerLessonFilter, setPickerLessonFilter] = useState<string>('all');
+  const [pickerTypeFilter, setPickerTypeFilter] = useState<string>('all');
+  const [quizFormQuestions, setQuizFormQuestions] = useState<QuizQuestionItem[]>([]);
+  const [editQuizFormQuestions, setEditQuizFormQuestions] = useState<QuizQuestionItem[]>([]);
 
   const getRows = () => {
     switch (kind) {
@@ -3002,11 +3244,27 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
       case 'subjects':
         return store.subjects.filter((s) => `${s.name} ${s.code} ${s.description}`.toLowerCase().includes(search.toLowerCase()));
       case 'lessons':
-        return store.lessons.filter((l) => `${l.title} ${l.subjectName} ${l.description} ${l.materialName || ''}`.toLowerCase().includes(search.toLowerCase()));
+        return store.lessons.filter((l) => {
+          const matchSub = lessonSubjectFilter === 'all' || l.subjectId === Number(lessonSubjectFilter);
+          const matchSearch = `${l.title} ${l.subjectName} ${l.description} ${l.materialName || ''}`.toLowerCase().includes(search.toLowerCase());
+          return matchSub && matchSearch;
+        });
       case 'quizzes':
-        return store.quizzes.filter((q) => `${q.title} ${q.subjectName} ${q.attachmentName || ''}`.toLowerCase().includes(search.toLowerCase()));
+        return store.quizzes.filter((q) => {
+          const matchSub = quizSubjectFilter === 'all' || q.subjectId === Number(quizSubjectFilter);
+          const matchSearch = `${q.title} ${q.subjectName} ${q.attachmentName || ''}`.toLowerCase().includes(search.toLowerCase());
+          return matchSub && matchSearch;
+        });
       case 'questions':
-        return store.questions.filter((q) => `${q.text} ${q.type}`.toLowerCase().includes(search.toLowerCase()));
+        return store.questions.filter((q) => {
+          const matchSubject = questionSubjectFilter === 'all' || q.subjectId === Number(questionSubjectFilter);
+          const matchLesson = questionLessonFilter === 'all' || q.lessonId === Number(questionLessonFilter);
+          const matchType = questionTypeFilter === 'all' || q.type === questionTypeFilter;
+          const matchDifficulty = questionDifficultyFilter === 'all' || q.difficulty === questionDifficultyFilter;
+          const matchStatus = questionStatusFilter === 'all' || q.status === questionStatusFilter;
+          const matchSearch = `${q.text} ${q.subjectName} ${q.lessonTitle || ''} ${q.type} ${q.explanation || ''} ${q.difficulty} ${q.status}`.toLowerCase().includes(search.toLowerCase());
+          return matchSubject && matchLesson && matchType && matchDifficulty && matchStatus && matchSearch;
+        });
       case 'results':
         return store.results.filter((r) => `${r.quizName} ${r.subjectName} ${r.studentName || ''} ${r.submissionName || ''}`.toLowerCase().includes(search.toLowerCase()));
     }
@@ -3039,21 +3297,25 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
         timer: 2000,
       });
     } else if (kind === 'lessons') {
-      if (!lessonForm.title) return;
+      if (!lessonForm.title || !lessonForm.subjectId) return;
       store.addLesson({
-        ...lessonForm,
+        title: lessonForm.title,
+        subjectId: Number(lessonForm.subjectId),
+        description: lessonForm.description,
+        lessonType: lessonForm.lessonType,
+        published: lessonForm.published,
         materialName: lessonFile?.name || null,
         materialUrl: lessonFile?.url || null,
         materialSize: lessonFile?.size || null,
         materialType: lessonFile?.type || null,
       });
       const publishedTitle = lessonForm.title;
-      setLessonForm({ title: '', subjectId: store.subjects[0]?.id || 1, description: '' });
+      setLessonForm({ title: '', subjectId: store.subjects[0]?.id || 1, description: '', lessonType: 'text', published: true });
       setLessonFile(null);
       Swal.fire({
         icon: 'success',
-        title: 'Lesson Published',
-        text: `${publishedTitle} has been published successfully.`,
+        title: lessonForm.published ? 'Lesson Published!' : 'Lesson Saved as Draft!',
+        text: `"${publishedTitle}" has been ${lessonForm.published ? 'published' : 'saved as draft'} successfully.`,
         confirmButtonColor: '#0f766e',
         timer: 2000,
       });
@@ -3065,7 +3327,10 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
         attachmentUrl: quizFile?.url || null,
         attachmentSize: quizFile?.size || null,
         attachmentType: quizFile?.type || null,
+        questions: quizFormQuestions.length > 0 ? quizFormQuestions : undefined,
+        questionCount: quizFormQuestions.length > 0 ? quizFormQuestions.length : 1,
       });
+      setQuizFormQuestions([]);
       const createdTitle = quizForm.title;
       const createdTimeLimit = quizForm.timeLimit;
       setQuizForm({ title: '', subjectId: store.subjects[0]?.id || 1, passingScore: 70, timeLimit: 15, description: '' });
@@ -3084,18 +3349,198 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
         timerProgressBar: true,
       });
     } else if (kind === 'questions') {
-      if (!questionForm.text) return;
-      store.addQuestion(questionForm);
-      setQuestionForm({ text: '', type: 'multiple_choice', points: 1 });
+      if (!qForm.text.trim()) {
+        Swal.fire({ icon: 'warning', title: 'Question Text Required', text: 'Please enter the question text.', confirmButtonColor: '#0f766e' });
+        return;
+      }
+      if (qForm.type === 'multiple_choice') {
+        const validChoices = qForm.choices.filter((c) => c.label.trim().length > 0);
+        if (validChoices.length < 2) {
+          Swal.fire({ icon: 'warning', title: 'Choices Required', text: 'Please enter at least two answer choices for multiple choice questions.', confirmButtonColor: '#0f766e' });
+          return;
+        }
+        if (!qForm.correctAnswer) {
+          Swal.fire({ icon: 'warning', title: 'Correct Answer Required', text: 'Please select which answer choice is correct.', confirmButtonColor: '#0f766e' });
+          return;
+        }
+      } else if (qForm.type === 'identification') {
+        if (!qForm.correctAnswer.trim()) {
+          Swal.fire({ icon: 'warning', title: 'Expected Answer Required', text: 'Please enter the expected correct answer for identification questions.', confirmButtonColor: '#0f766e' });
+          return;
+        }
+      }
+
+      const acceptedList = qForm.acceptedAnswersStr
+        ? qForm.acceptedAnswersStr.split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
+
+      store.addQuestion({
+        text: qForm.text.trim(),
+        type: qForm.type,
+        subjectId: Number(qForm.subjectId),
+        lessonId: qForm.lessonId ? Number(qForm.lessonId) : null,
+        choices: qForm.type === 'multiple_choice' ? qForm.choices.filter((c) => c.label.trim().length > 0) : undefined,
+        correctAnswer: qForm.correctAnswer,
+        acceptedAnswers: acceptedList,
+        sampleAnswerRubric: qForm.sampleAnswerRubric,
+        explanation: qForm.explanation,
+        points: Number(qForm.points) || 1,
+        difficulty: qForm.difficulty,
+        status: qForm.status,
+        authorName: user?.fullName || 'Instructor',
+      });
+
       Swal.fire({
         icon: 'success',
-        title: 'Question Added',
-        text: 'Question bank has been updated.',
+        title: 'Question Saved to Bank!',
+        text: `"${qForm.text.slice(0, 45)}..." has been added to the question bank.`,
         confirmButtonColor: '#0f766e',
         timer: 2000,
       });
+
+      setQForm({
+        text: '',
+        type: qForm.type,
+        subjectId: qForm.subjectId,
+        lessonId: qForm.lessonId,
+        points: qForm.points,
+        difficulty: qForm.difficulty,
+        status: qForm.status,
+        choices: defaultChoices,
+        correctAnswer: 'a',
+        acceptedAnswersStr: '',
+        sampleAnswerRubric: '',
+        explanation: '',
+      });
     }
     setShowModal(false);
+  };
+
+  const handleSaveAndAddAnother = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!qForm.text.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Question Text Required', text: 'Please enter the question text.', confirmButtonColor: '#0f766e' });
+      return;
+    }
+    if (qForm.type === 'multiple_choice') {
+      const validChoices = qForm.choices.filter((c) => c.label.trim().length > 0);
+      if (validChoices.length < 2) {
+        Swal.fire({ icon: 'warning', title: 'Choices Required', text: 'Please enter at least two answer choices.', confirmButtonColor: '#0f766e' });
+        return;
+      }
+      if (!qForm.correctAnswer) {
+        Swal.fire({ icon: 'warning', title: 'Correct Answer Required', text: 'Please select which answer choice is correct.', confirmButtonColor: '#0f766e' });
+        return;
+      }
+    } else if (qForm.type === 'identification' && !qForm.correctAnswer.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Expected Answer Required', text: 'Please enter the expected answer.', confirmButtonColor: '#0f766e' });
+      return;
+    }
+
+    const acceptedList = qForm.acceptedAnswersStr
+      ? qForm.acceptedAnswersStr.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    store.addQuestion({
+      text: qForm.text.trim(),
+      type: qForm.type,
+      subjectId: Number(qForm.subjectId),
+      lessonId: qForm.lessonId ? Number(qForm.lessonId) : null,
+      choices: qForm.type === 'multiple_choice' ? qForm.choices.filter((c) => c.label.trim().length > 0) : undefined,
+      correctAnswer: qForm.correctAnswer,
+      acceptedAnswers: acceptedList,
+      sampleAnswerRubric: qForm.sampleAnswerRubric,
+      explanation: qForm.explanation,
+      points: Number(qForm.points) || 1,
+      difficulty: qForm.difficulty,
+      status: qForm.status,
+      authorName: user?.fullName || 'Instructor',
+    });
+
+    toast({
+      title: 'Question Saved to Bank!',
+      description: 'Ready for your next question entry.',
+    });
+
+    setQForm((prev) => ({
+      ...prev,
+      text: '',
+      choices: defaultChoices,
+      correctAnswer: prev.type === 'true_false' ? 'true' : 'a',
+      acceptedAnswersStr: '',
+      sampleAnswerRubric: '',
+      explanation: '',
+    }));
+  };
+
+  const handleEditQuestionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestion || !editQForm.text.trim()) return;
+
+    const acceptedList = editQForm.acceptedAnswersStr
+      ? editQForm.acceptedAnswersStr.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    store.updateQuestion(editingQuestion.id, {
+      text: editQForm.text.trim(),
+      type: editQForm.type,
+      subjectId: Number(editQForm.subjectId),
+      lessonId: editQForm.lessonId ? Number(editQForm.lessonId) : null,
+      choices: editQForm.type === 'multiple_choice' ? editQForm.choices.filter((c) => c.label.trim().length > 0) : (editQForm.type === 'true_false' ? [
+        { id: 'true', value: 'true', label: 'True' },
+        { id: 'false', value: 'false', label: 'False' },
+      ] : []),
+      correctAnswer: editQForm.correctAnswer,
+      acceptedAnswers: acceptedList,
+      sampleAnswerRubric: editQForm.sampleAnswerRubric,
+      explanation: editQForm.explanation,
+      points: Number(editQForm.points) || 1,
+      difficulty: editQForm.difficulty,
+      status: editQForm.status,
+    });
+
+    setEditingQuestion(null);
+    Swal.fire({
+      icon: 'success',
+      title: 'Question Updated!',
+      text: 'Question bank record has been updated successfully.',
+      confirmButtonColor: '#0f766e',
+      timer: 2000,
+    });
+  };
+
+  const handleDeleteQuestion = (q: QuestionBankItem) => {
+    const usage = isQuestionUsedInQuiz(store.quizzes, q.id);
+    if (usage.used) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Cannot Delete Question',
+        html: `<div style="text-align: left; font-size: 13px; line-height: 1.6;">
+          <p>This question is actively referenced by <b>${usage.quizTitles.length} quiz(zes)</b>:</p>
+          <ul style="margin: 8px 0; padding-left: 20px; color: #0f766e; font-weight: 600;">
+            ${usage.quizTitles.map((t) => `<li>${t}</li>`).join('')}
+          </ul>
+          <p style="color: #64748b; margin-top: 8px;">To protect enrolled student scores and assessment history, questions in active quizzes cannot be deleted. You can set its status to <b>Draft</b> or remove it from the quiz first.</p>
+        </div>`,
+        confirmButtonColor: '#0f766e',
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Delete Question?',
+      text: `Are you sure you want to remove "${q.text.slice(0, 50)}..." from the question bank?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#b91c1c',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Delete',
+    }).then((result) => {
+      if (result.isConfirmed) {
+        store.deleteQuestion(q.id);
+        toast({ title: 'Deleted', description: 'Question removed from bank.' });
+      }
+    });
   };
 
   const titles: Record<string, { title: string; eyebrow: string; body: string }> = {
@@ -3201,16 +3646,17 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                     required
                     value={lessonForm.title}
                     onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
-                    placeholder="e.g. Binary Search Trees"
+                    placeholder="e.g. Introduction to SQL Joins"
                     className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-foreground">Subject</label>
+                  <label className="text-xs font-bold text-foreground">Subject <span className="text-destructive">*</span></label>
                   <select
+                    required
                     value={lessonForm.subjectId}
                     onChange={(e) => setLessonForm({ ...lessonForm, subjectId: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
                   >
                     {store.subjects.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -3219,12 +3665,35 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Lesson Type</label>
+                  <select
+                    value={lessonForm.lessonType}
+                    onChange={(e) => setLessonForm({ ...lessonForm, lessonType: e.target.value as 'text' | 'pdf' | 'video' })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="text">📝 Text Lesson</option>
+                    <option value="pdf">📄 PDF Resource</option>
+                    <option value="video">🎥 Video Lesson</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Status</label>
+                  <select
+                    value={lessonForm.published ? 'published' : 'draft'}
+                    onChange={(e) => setLessonForm({ ...lessonForm, published: e.target.value === 'published' })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="published">✅ Published (visible to students)</option>
+                    <option value="draft">📝 Draft (hidden from students)</option>
+                  </select>
+                </div>
                 <div className="sm:col-span-2">
                   <label className="text-xs font-bold text-foreground">Description</label>
                   <textarea
                     value={lessonForm.description}
                     onChange={(e) => setLessonForm({ ...lessonForm, description: e.target.value })}
-                    placeholder="Summary of this lesson..."
+                    placeholder="Summary of what students will learn in this lesson..."
                     className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
                     rows={2}
                   />
@@ -3325,45 +3794,321 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                     id="admin-quiz-file-upload"
                   />
                 </div>
+
+                {/* Question Bank Integration for Quiz Creation */}
+                <div className="sm:col-span-2 rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-display text-sm font-bold flex items-center gap-2">
+                        <FileQuestion className="size-4 text-teal-700" />
+                        Selected Quiz Questions ({quizFormQuestions.length})
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Select and attach vetted questions from your Question Bank.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPickerTarget('create');
+                        setSelectedBankQuestionIds(quizFormQuestions.map((q) => q.questionBankId || q.id));
+                        setShowQuestionBankPicker(true);
+                      }}
+                      className="rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="size-3.5" /> Select from Question Bank
+                    </button>
+                  </div>
+
+                  {quizFormQuestions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+                      No questions attached yet. Click <strong>"Select from Question Bank"</strong> to choose published questions for this subject.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1 divide-y divide-border/60">
+                      {quizFormQuestions.map((q, idx) => (
+                        <div key={q.id || idx} className="flex items-center justify-between pt-2 first:pt-0">
+                          <div className="min-w-0 flex-1 pr-3">
+                            <p className="text-xs font-bold truncate">
+                              <span className="text-teal-700 mr-1.5">Q{idx + 1}.</span> {q.text}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground uppercase font-mono-ui font-semibold">
+                              {q.type?.replace('_', ' ')} · {q.points || 1} pt(s)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setQuizFormQuestions((prev) => prev.filter((_, i) => i !== idx))}
+                            className="rounded-lg p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                            title="Remove question"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {kind === 'questions' && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-bold text-foreground">Question Text</label>
-                  <input
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Subject <span className="text-destructive">*</span></label>
+                    <select
+                      required
+                      value={qForm.subjectId}
+                      onChange={(e) => {
+                        const sid = Number(e.target.value);
+                        setQForm({ ...qForm, subjectId: sid, lessonId: '' });
+                      }}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    >
+                      {store.subjects.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Related Lesson (Optional)</label>
+                    <select
+                      value={qForm.lessonId}
+                      onChange={(e) => setQForm({ ...qForm, lessonId: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    >
+                      <option value="">None / General Subject</option>
+                      {store.lessons.filter((l) => l.subjectId === Number(qForm.subjectId)).map((l) => (
+                        <option key={l.id} value={l.id}>{l.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Question Type <span className="text-destructive">*</span></label>
+                    <select
+                      value={qForm.type}
+                      onChange={(e) => {
+                        const nextType = e.target.value as QuestionType;
+                        setQForm({
+                          ...qForm,
+                          type: nextType,
+                          correctAnswer: nextType === 'true_false' ? 'true' : nextType === 'multiple_choice' ? 'a' : '',
+                        });
+                      }}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    >
+                      <option value="multiple_choice">🔘 Multiple Choice</option>
+                      <option value="true_false">⚖️ True or False</option>
+                      <option value="identification">✍️ Identification / Short Answer</option>
+                      <option value="essay">📝 Essay (Manual Grading)</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-bold text-foreground">Points</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        required
+                        value={qForm.points}
+                        onChange={(e) => setQForm({ ...qForm, points: Math.max(1, Number(e.target.value)) })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-mono-ui font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-foreground">Difficulty</label>
+                      <select
+                        value={qForm.difficulty}
+                        onChange={(e) => setQForm({ ...qForm, difficulty: e.target.value as DifficultyLevel })}
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                      >
+                        <option value="easy">🟢 Easy</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="hard">🔴 Hard</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-foreground">Question Text <span className="text-destructive">*</span></label>
+                  <textarea
                     required
-                    value={questionForm.text}
-                    onChange={(e) => setQuestionForm({ ...questionForm, text: e.target.value })}
-                    placeholder="What is the time complexity of binary search?"
+                    rows={2}
+                    value={qForm.text}
+                    onChange={(e) => setQForm({ ...qForm, text: e.target.value })}
+                    placeholder="Enter the complete question prompt..."
                     className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-foreground">Type</label>
-                  <select
-                    value={questionForm.type}
-                    onChange={(e) => setQuestionForm({ ...questionForm, type: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
-                  >
-                    <option value="multiple_choice">Multiple Choice</option>
-                    <option value="true_false">True / False</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-foreground">Points</label>
-                  <input
-                    type="number"
-                    value={questionForm.points}
-                    onChange={(e) => setQuestionForm({ ...questionForm, points: Number(e.target.value) })}
-                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/50"
-                  />
+
+                {/* Dynamic Choice Inputs for Multiple Choice */}
+                {qForm.type === 'multiple_choice' && (
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-foreground">
+                        Answer Choices (Select radio button for Correct Answer) <span className="text-destructive">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextLetter = String.fromCharCode(97 + qForm.choices.length);
+                          setQForm({
+                            ...qForm,
+                            choices: [...qForm.choices, { id: nextLetter, value: nextLetter, label: '' }],
+                          });
+                        }}
+                        className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="size-3" /> Add Choice
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {qForm.choices.map((c, idx) => (
+                        <div key={c.id || idx} className="flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold uppercase text-muted-foreground shrink-0 w-12">
+                            <input
+                              type="radio"
+                              name="qFormCorrectAnswer"
+                              checked={qForm.correctAnswer === c.value}
+                              onChange={() => setQForm({ ...qForm, correctAnswer: c.value })}
+                              className="accent-teal-700"
+                            />
+                            {c.value.toUpperCase()}.
+                          </label>
+                          <input
+                            required={idx < 2}
+                            value={c.label}
+                            onChange={(e) => {
+                              const updated = [...qForm.choices];
+                              updated[idx].label = e.target.value;
+                              setQForm({ ...qForm, choices: updated });
+                            }}
+                            placeholder={`Choice ${c.value.toUpperCase()} text...`}
+                            className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                          />
+                          {qForm.choices.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = qForm.choices.filter((_, i) => i !== idx);
+                                setQForm({
+                                  ...qForm,
+                                  choices: updated,
+                                  correctAnswer: qForm.correctAnswer === c.value ? (updated[0]?.value || 'a') : qForm.correctAnswer,
+                                });
+                              }}
+                              className="p-1 text-muted-foreground hover:text-destructive"
+                              title="Remove choice"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* True or False */}
+                {qForm.type === 'true_false' && (
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
+                    <label className="text-xs font-bold text-foreground">Select Correct Answer <span className="text-destructive">*</span></label>
+                    <div className="flex gap-4">
+                      {['true', 'false'].map((val) => (
+                        <label
+                          key={val}
+                          className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold capitalize cursor-pointer transition-colors ${
+                            qForm.correctAnswer === val ? 'border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300' : 'border-border bg-card text-foreground'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="tfCorrect"
+                            value={val}
+                            checked={qForm.correctAnswer === val}
+                            onChange={() => setQForm({ ...qForm, correctAnswer: val })}
+                            className="accent-teal-700"
+                          />
+                          {val === 'true' ? 'True Statement' : 'False Statement'}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Identification / Short Answer */}
+                {qForm.type === 'identification' && (
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-foreground">Expected Correct Answer <span className="text-destructive">*</span></label>
+                      <input
+                        required
+                        value={qForm.correctAnswer}
+                        onChange={(e) => setQForm({ ...qForm, correctAnswer: e.target.value })}
+                        placeholder="e.g. Structured Query Language"
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-foreground">Alternative Accepted Answers (comma-separated)</label>
+                      <input
+                        value={qForm.acceptedAnswersStr}
+                        onChange={(e) => setQForm({ ...qForm, acceptedAnswersStr: e.target.value })}
+                        placeholder="e.g. SQL, Structured Query Lang"
+                        className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Matching ignores uppercase/lowercase and extra spaces automatically.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Essay */}
+                {qForm.type === 'essay' && (
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
+                    <label className="text-xs font-bold text-foreground">Sample Answer / Grading Rubric (for teacher review)</label>
+                    <textarea
+                      rows={3}
+                      value={qForm.sampleAnswerRubric}
+                      onChange={(e) => setQForm({ ...qForm, sampleAnswerRubric: e.target.value })}
+                      placeholder="Outline the key points, concepts, or criteria required for full credit..."
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                  </div>
+                )}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Explanation / Solution Notes (Optional)</label>
+                    <input
+                      value={qForm.explanation}
+                      onChange={(e) => setQForm({ ...qForm, explanation: e.target.value })}
+                      placeholder="Feedback displayed when reviewing results..."
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Publication Status</label>
+                    <select
+                      value={qForm.status}
+                      onChange={(e) => setQForm({ ...qForm, status: e.target.value as QuestionStatus })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    >
+                      <option value="published">✅ Published (Ready for Quizzes)</option>
+                      <option value="draft">📝 Draft (Internal Review Only)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-3">
               <button
                 type="submit"
                 className="flex items-center gap-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-5 py-2.5 text-xs font-bold shadow-sm transition-all"
@@ -3371,6 +4116,18 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
               >
                 <Save className="size-4" /> Save {kind.slice(0, -1)}
               </button>
+
+              {kind === 'questions' && (
+                <button
+                  type="button"
+                  onClick={handleSaveAndAddAnother}
+                  className="flex items-center gap-2 rounded-xl bg-primary text-accent hover:opacity-95 px-4 py-2.5 text-xs font-bold shadow-sm transition-all"
+                  data-testid="button-save-add-another-question"
+                >
+                  <Plus className="size-4" /> Save and Add Another
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -3378,7 +4135,7 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                   setLessonFile(null);
                   setQuizFile(null);
                 }}
-                className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted"
+                className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted ml-auto"
               >
                 Cancel
               </button>
@@ -3421,13 +4178,62 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
         </div>
       )}
 
+      {/* Top Overview Cards for Questions */}
+      {kind === 'questions' && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5 animate-rise">
+          <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Questions</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-primary">{store.questions.length}</span>
+              <span className="text-[11px] text-muted-foreground">In Bank</span>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Published</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-teal-700">
+                {store.questions.filter((q) => q.status === 'published').length}
+              </span>
+              <span className="text-[11px] text-muted-foreground">Active</span>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Drafts</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-amber-600">
+                {store.questions.filter((q) => q.status === 'draft').length}
+              </span>
+              <span className="text-[11px] text-muted-foreground">In Review</span>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Subjects Covered</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-primary">
+                {new Set(store.questions.map((q) => q.subjectId)).size}
+              </span>
+              <span className="text-[11px] text-muted-foreground">Curricula</span>
+            </div>
+          </div>
+          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Used in Quizzes</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="font-display text-2xl font-extrabold text-emerald-600">
+                {store.questions.filter((q) => isQuestionUsedInQuiz(store.quizzes, q.id).used).length}
+              </span>
+              <span className="text-[11px] text-muted-foreground">Linked</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="flex max-w-md flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
           <Search className="size-4 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${kind === 'students' ? 'students by name, email, ID, or date' : kind}...`}
+            placeholder={`Search ${kind === 'students' ? 'students by name, email, ID, or date' : kind === 'questions' ? 'questions by prompt, subject, lesson, or type' : kind}...`}
             className="w-full bg-transparent text-sm outline-none"
             data-testid={`input-search-${kind}`}
           />
@@ -3455,6 +4261,170 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                 {tab.label}
               </button>
             ))}
+          </div>
+        )}
+
+        {kind === 'lessons' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">Subject:</span>
+            <select
+              value={lessonSubjectFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setLessonSubjectFilter(val);
+                if (val !== 'all') {
+                  setLessonForm((prev) => ({ ...prev, subjectId: Number(val) }));
+                }
+              }}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-lesson-subject"
+            >
+              <option value="all">All Subjects ({store.lessons.length})</option>
+              {store.subjects.map((s) => {
+                const count = store.lessons.filter((l) => l.subjectId === s.id).length;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({count} lessons)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {kind === 'quizzes' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">Subject:</span>
+            <select
+              value={quizSubjectFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setQuizSubjectFilter(val);
+                if (val !== 'all') {
+                  setQuizForm((prev) => ({ ...prev, subjectId: Number(val) }));
+                }
+              }}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-quiz-subject"
+            >
+              <option value="all">All Subjects ({store.quizzes.length})</option>
+              {store.subjects.map((s) => {
+                const count = store.quizzes.filter((q) => q.subjectId === s.id).length;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({count} quizzes)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
+
+        {kind === 'questions' && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Subject Filter */}
+            <select
+              value={questionSubjectFilter}
+              onChange={(e) => {
+                const sid = e.target.value;
+                setQuestionSubjectFilter(sid);
+                setQuestionLessonFilter('all');
+              }}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-question-subject"
+            >
+              <option value="all">All Subjects ({store.questions.length})</option>
+              {store.subjects.map((s) => {
+                const count = store.questions.filter((q) => q.subjectId === s.id).length;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({count})
+                  </option>
+                );
+              })}
+            </select>
+
+            {/* Lesson Filter */}
+            <select
+              value={questionLessonFilter}
+              onChange={(e) => setQuestionLessonFilter(e.target.value)}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-question-lesson"
+            >
+              <option value="all">All Lessons</option>
+              {(questionSubjectFilter === 'all'
+                ? store.lessons
+                : store.lessons.filter((l) => l.subjectId === Number(questionSubjectFilter))
+              ).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title}
+                </option>
+              ))}
+            </select>
+
+            {/* Question Type Filter */}
+            <select
+              value={questionTypeFilter}
+              onChange={(e) => setQuestionTypeFilter(e.target.value)}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-question-type"
+            >
+              <option value="all">All Types</option>
+              <option value="multiple_choice">Multiple Choice</option>
+              <option value="true_false">True or False</option>
+              <option value="identification">Identification</option>
+              <option value="essay">Essay</option>
+            </select>
+
+            {/* Difficulty Filter */}
+            <select
+              value={questionDifficultyFilter}
+              onChange={(e) => setQuestionDifficultyFilter(e.target.value)}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-question-difficulty"
+            >
+              <option value="all">All Difficulties</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={questionStatusFilter}
+              onChange={(e) => setQuestionStatusFilter(e.target.value)}
+              className="rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+              data-testid="select-filter-question-status"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+            </select>
+
+            {/* Clear Filters Button */}
+            {(questionSubjectFilter !== 'all' ||
+              questionLessonFilter !== 'all' ||
+              questionTypeFilter !== 'all' ||
+              questionDifficultyFilter !== 'all' ||
+              questionStatusFilter !== 'all' ||
+              search.trim() !== '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuestionSubjectFilter('all');
+                  setQuestionLessonFilter('all');
+                  setQuestionTypeFilter('all');
+                  setQuestionDifficultyFilter('all');
+                  setQuestionStatusFilter('all');
+                  setSearch('');
+                }}
+                className="rounded-xl border border-border bg-muted/60 hover:bg-muted px-2.5 py-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                title="Reset all filters"
+                data-testid="button-clear-question-filters"
+              >
+                <X className="size-3" /> Clear Filters
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -3583,6 +4553,160 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
             ))}
           </div>
         </div>
+      ) : kind === 'questions' ? (
+        /* Dedicated Question Bank Table */
+        <div className="overflow-x-auto rounded-2xl border border-card-border bg-card shadow-xs">
+          <div className="min-w-[860px]">
+            <div className="grid grid-cols-[2fr_1.2fr_120px_100px_110px] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span>Question</span>
+              <span>Subject / Type</span>
+              <span>Metrics</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+            </div>
+
+            {rows.map((q: any) => {
+              const quizUsage = isQuestionUsedInQuiz(store.quizzes, q.id);
+              const typeLabels: Record<QuestionType, { label: string; icon: string; color: string }> = {
+                multiple_choice: { label: 'Multiple Choice', icon: '🔘', color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' },
+                true_false: { label: 'True / False', icon: '⚖️', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' },
+                identification: { label: 'Short Answer', icon: '✍️', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' },
+                essay: { label: 'Essay', icon: '📝', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
+              };
+              const diffColors: Record<DifficultyLevel, { label: string; dot: string; color: string }> = {
+                easy: { label: 'Easy', dot: 'bg-emerald-500', color: 'text-emerald-700 dark:text-emerald-400' },
+                medium: { label: 'Medium', dot: 'bg-amber-500', color: 'text-amber-700 dark:text-amber-400' },
+                hard: { label: 'Hard', dot: 'bg-red-500', color: 'text-red-700 dark:text-red-400' },
+              };
+
+              const tInfo = typeLabels[q.type as QuestionType] || typeLabels.multiple_choice;
+              const dInfo = diffColors[q.difficulty as DifficultyLevel] || diffColors.medium;
+
+              return (
+                <div
+                  key={q.id}
+                  className="grid grid-cols-[2fr_1.2fr_120px_100px_110px] items-center gap-4 border-b border-border px-5 py-4 last:border-0 hover:bg-muted/15 transition-colors"
+                  data-testid={`row-admin-questions-${q.id}`}
+                >
+                  {/* Column 1: Question text + chips */}
+                  <div className="min-w-0 pr-2">
+                    <p className="font-bold text-foreground text-sm line-clamp-2 leading-snug">
+                      {q.text}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border ${tInfo.color}`}>
+                        <span>{tInfo.icon}</span> {tInfo.label}
+                      </span>
+                      {q.lessonTitle && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground truncate max-w-[200px]" title={q.lessonTitle}>
+                          <BookOpen className="size-2.5 shrink-0" />
+                          <span className="truncate">{q.lessonTitle}</span>
+                        </span>
+                      )}
+                      {quizUsage.used && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60 px-1.5 py-0.5 text-[10px] font-bold" title={`Used in: ${quizUsage.quizTitles.join(', ')}`}>
+                          <CheckCircle2 className="size-2.5" /> In Quiz ({quizUsage.quizTitles.length})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Column 2: Subject */}
+                  <div className="min-w-0">
+                    <p className="font-bold text-xs text-primary truncate">{q.subjectName}</p>
+                    <span className="text-[10px] font-mono-ui font-semibold text-muted-foreground">
+                      ID: #{q.id} {q.authorName ? `· ${q.authorName}` : ''}
+                    </span>
+                  </div>
+
+                  {/* Column 3: Metrics */}
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono-ui text-xs font-bold text-teal-700 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                        {q.points || 1} {q.points === 1 ? 'pt' : 'pts'}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${dInfo.color}`}>
+                        <span className={`size-1.5 rounded-full ${dInfo.dot}`} />
+                        {dInfo.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Column 4: Status Toggle */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        store.toggleQuestionPublish(q.id);
+                        toast({
+                          title: q.status === 'published' ? 'Set to Draft' : 'Question Published',
+                          description: q.status === 'published' ? 'Question will not appear in student quizzes.' : 'Question is now available for quizzes.',
+                        });
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold transition-all ${
+                        q.status === 'published'
+                          ? 'bg-teal-700/15 text-teal-700 hover:bg-teal-700/25 dark:bg-teal-900/40 dark:text-teal-300'
+                          : 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:bg-amber-900/40 dark:text-amber-300'
+                      }`}
+                      title="Click to toggle Published / Draft status"
+                      data-testid={`button-toggle-status-${q.id}`}
+                    >
+                      <span className={`size-1.5 rounded-full ${q.status === 'published' ? 'bg-teal-700' : 'bg-amber-500'}`} />
+                      {q.status === 'published' ? 'Published' : 'Draft'}
+                    </button>
+                  </div>
+
+                  {/* Column 5: Actions */}
+                  <div className="flex justify-end items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewingQuestion(q)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-teal-700/10 hover:text-teal-700 transition-colors"
+                      data-testid={`button-view-question-${q.id}`}
+                      title="View Question Details"
+                    >
+                      <Eye className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingQuestion(q);
+                        setEditQForm({
+                          text: q.text,
+                          type: q.type,
+                          subjectId: q.subjectId,
+                          lessonId: q.lessonId ? String(q.lessonId) : '',
+                          points: q.points || 1,
+                          difficulty: q.difficulty,
+                          status: q.status,
+                          choices: q.choices && q.choices.length > 0 ? q.choices : defaultChoices,
+                          correctAnswer: q.correctAnswer || (q.type === 'true_false' ? 'true' : 'a'),
+                          acceptedAnswersStr: (q.acceptedAnswers || []).join(', '),
+                          sampleAnswerRubric: q.sampleAnswerRubric || '',
+                          explanation: q.explanation || '',
+                        });
+                      }}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      data-testid={`button-edit-question-${q.id}`}
+                      title="Edit Question"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteQuestion(q)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      data-testid={`button-delete-question-${q.id}`}
+                      title="Delete Question"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : (
         /* Table rendering for subjects, lessons, quizzes, questions, results */
         <div className="overflow-x-auto rounded-2xl border border-card-border bg-card">
@@ -3690,6 +4814,19 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                         </span>
                       ) : null}
                     </div>
+                  ) : kind === 'lessons' ? (
+                    <button
+                      type="button"
+                      onClick={() => store.toggleLessonPublish(x.id)}
+                      className={`rounded px-2 py-0.5 text-[10px] font-bold transition-colors ${
+                        x.published === false
+                          ? 'bg-amber-500/15 text-amber-700 hover:bg-amber-500/30'
+                          : 'bg-teal-700/10 text-teal-700 hover:bg-teal-700/20'
+                      }`}
+                      title="Click to toggle published/draft"
+                    >
+                      {x.published === false ? 'Draft' : 'Published'}
+                    </button>
                   ) : (
                     <span className="rounded bg-teal-700/10 px-2 py-0.5 text-[10px] font-bold text-teal-700">
                       Published
@@ -3698,6 +4835,30 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                 </div>
 
                 <div className="flex justify-end items-center gap-1">
+                  {kind === 'lessons' && (
+                    <button
+                      onClick={() => {
+                        setEditingLesson(x);
+                        setEditLessonForm({
+                          title: x.title,
+                          subjectId: x.subjectId,
+                          description: x.description || '',
+                          lessonType: x.lessonType || 'text',
+                          published: x.published !== false,
+                        });
+                        setEditLessonFile(
+                          x.materialName
+                            ? { name: x.materialName, url: x.materialUrl, size: x.materialSize, type: x.materialType }
+                            : null
+                        );
+                      }}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      data-testid={`button-edit-lesson-${x.id}`}
+                      title="Edit lesson"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                  )}
                   {kind === 'quizzes' && (
                     <button
                       onClick={() => {
@@ -3743,6 +4904,91 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {/* Edit Lesson Modal */}
+      {editingLesson && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setEditingLesson(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card p-6 shadow-2xl animate-rise" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-display text-lg font-bold">Edit Lesson</h3>
+              <button onClick={() => setEditingLesson(null)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleEditLessonSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-foreground">Lesson Title</label>
+                  <input
+                    required
+                    value={editLessonForm.title}
+                    onChange={(e) => setEditLessonForm({ ...editLessonForm, title: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Subject</label>
+                  <select
+                    value={editLessonForm.subjectId}
+                    onChange={(e) => setEditLessonForm({ ...editLessonForm, subjectId: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    {store.subjects.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Lesson Type</label>
+                  <select
+                    value={editLessonForm.lessonType}
+                    onChange={(e) => setEditLessonForm({ ...editLessonForm, lessonType: e.target.value as 'text' | 'pdf' | 'video' })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="text">📝 Text</option>
+                    <option value="pdf">📄 PDF</option>
+                    <option value="video">🎥 Video</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Status</label>
+                  <select
+                    value={editLessonForm.published ? 'published' : 'draft'}
+                    onChange={(e) => setEditLessonForm({ ...editLessonForm, published: e.target.value === 'published' })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="published">✅ Published</option>
+                    <option value="draft">📝 Draft</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-foreground">Description</label>
+                  <textarea
+                    value={editLessonForm.description}
+                    onChange={(e) => setEditLessonForm({ ...editLessonForm, description: e.target.value })}
+                    rows={2}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-5 py-2.5 text-xs font-bold shadow-sm transition-all"
+                >
+                  <Save className="size-4" /> Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingLesson(null)}
+                  className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -4024,12 +5270,714 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
           </div>
         </div>
       )}
+      {/* Question Details View Modal */}
+      {viewingQuestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in" onClick={() => setViewingQuestion(null)}>
+          <div className="w-full max-w-xl rounded-3xl border border-card-border bg-card p-6 shadow-2xl animate-rise max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-9 place-items-center rounded-xl bg-teal-700/10 text-teal-700">
+                  <FileQuestion className="size-5" />
+                </span>
+                <div>
+                  <h3 className="font-display text-base font-bold text-foreground">Question Details</h3>
+                  <p className="text-xs text-muted-foreground">ID #{viewingQuestion.id} · {viewingQuestion.subjectName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingQuestion(null)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4 text-xs">
+              {/* Question metadata chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-teal-700/10 text-teal-700 font-bold px-2.5 py-1">
+                  {viewingQuestion.subjectName}
+                </span>
+                {viewingQuestion.lessonTitle && (
+                  <span className="rounded-lg bg-muted text-foreground font-medium px-2.5 py-1 flex items-center gap-1">
+                    <BookOpen className="size-3 text-muted-foreground" /> {viewingQuestion.lessonTitle}
+                  </span>
+                )}
+                <span className="rounded-lg border border-border bg-card font-bold px-2.5 py-1 uppercase font-mono-ui">
+                  {viewingQuestion.type.replace('_', ' ')}
+                </span>
+                <span className="rounded-lg bg-accent/20 text-foreground font-bold px-2.5 py-1">
+                  {viewingQuestion.points || 1} pt(s)
+                </span>
+                <span className={`rounded-lg px-2.5 py-1 font-bold capitalize ${
+                  viewingQuestion.difficulty === 'easy' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' :
+                  viewingQuestion.difficulty === 'hard' ? 'bg-red-500/15 text-red-700 dark:text-red-400' :
+                  'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                }`}>
+                  {viewingQuestion.difficulty}
+                </span>
+                <span className={`rounded-lg px-2.5 py-1 font-bold ${
+                  viewingQuestion.status === 'published' ? 'bg-teal-700/15 text-teal-700' : 'bg-amber-500/15 text-amber-700'
+                }`}>
+                  {viewingQuestion.status === 'published' ? 'Published' : 'Draft'}
+                </span>
+              </div>
+
+              {/* Prompt box */}
+              <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Question Prompt</label>
+                <p className="mt-1 text-sm font-bold text-foreground leading-relaxed">{viewingQuestion.text}</p>
+              </div>
+
+              {/* Answer choices or solution info */}
+              {viewingQuestion.type === 'multiple_choice' && viewingQuestion.choices && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Answer Choices</label>
+                  <div className="space-y-1.5 mt-1">
+                    {viewingQuestion.choices.map((c) => {
+                      const isCorrect = viewingQuestion.correctAnswer === c.value;
+                      return (
+                        <div
+                          key={c.id}
+                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs border ${
+                            isCorrect
+                              ? 'border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 font-bold'
+                              : 'border-border bg-background text-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`size-5 rounded-md grid place-items-center font-mono-ui font-bold text-[10px] ${
+                              isCorrect ? 'bg-teal-700 text-white' : 'bg-muted text-muted-foreground'
+                            }`}>
+                              {c.value.toUpperCase()}
+                            </span>
+                            <span>{c.label}</span>
+                          </div>
+                          {isCorrect && (
+                            <span className="inline-flex items-center gap-1 rounded bg-teal-700 text-white px-2 py-0.5 text-[10px] font-bold">
+                              <Check className="size-3" /> Correct Answer
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {viewingQuestion.type === 'true_false' && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Correct Answer</label>
+                  <div className="flex gap-3 mt-1">
+                    {['true', 'false'].map((val) => {
+                      const isCorrect = viewingQuestion.correctAnswer === val;
+                      return (
+                        <div
+                          key={val}
+                          className={`flex-1 rounded-xl border p-3 text-center text-xs font-bold capitalize ${
+                            isCorrect
+                              ? 'border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 ring-2 ring-teal-700/20'
+                              : 'border-border bg-muted/30 text-muted-foreground opacity-60'
+                          }`}
+                        >
+                          {val === 'true' ? '✓ True Statement' : '✗ False Statement'}
+                          {isCorrect && <div className="text-[10px] text-teal-700 font-bold mt-0.5">Correct Option</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {viewingQuestion.type === 'identification' && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Accepted Answers</label>
+                  <div className="mt-1 p-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/50">
+                    <p className="text-xs font-bold text-teal-900 dark:text-teal-200">
+                      Primary Expected Answer: <span className="font-mono-ui font-extrabold">{viewingQuestion.correctAnswer}</span>
+                    </p>
+                    {viewingQuestion.acceptedAnswers && viewingQuestion.acceptedAnswers.length > 0 && (
+                      <p className="text-[11px] text-teal-800/80 dark:text-teal-300 mt-1">
+                        Alternative accepted variations: {viewingQuestion.acceptedAnswers.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {viewingQuestion.type === 'essay' && (
+                <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Sample Answer / Grading Rubric</label>
+                  <div className="mt-1 p-3 rounded-xl bg-muted/40 border border-border text-foreground font-medium whitespace-pre-wrap">
+                    {viewingQuestion.sampleAnswerRubric || 'No specific rubric provided; grade according to standard rubric.'}
+                  </div>
+                </div>
+              )}
+
+              {viewingQuestion.explanation && (
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-primary tracking-wider">Explanation / Solution Notes</label>
+                  <p className="text-xs text-foreground mt-0.5">{viewingQuestion.explanation}</p>
+                </div>
+              )}
+
+              {/* Quiz usage info */}
+              {(() => {
+                const usage = isQuestionUsedInQuiz(store.quizzes, viewingQuestion.id);
+                return (
+                  <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Quiz Usage</label>
+                    {usage.used ? (
+                      <p className="mt-1 text-xs text-teal-700 font-bold">
+                        Linked in {usage.quizTitles.length} quiz(zes): {usage.quizTitles.join(', ')}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Not currently assigned to any active quiz.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = viewingQuestion;
+                  setViewingQuestion(null);
+                  setEditingQuestion(target);
+                  setEditQForm({
+                    text: target.text,
+                    type: target.type,
+                    subjectId: target.subjectId,
+                    lessonId: target.lessonId ? String(target.lessonId) : '',
+                    points: target.points || 1,
+                    difficulty: target.difficulty,
+                    status: target.status,
+                    choices: target.choices && target.choices.length > 0 ? target.choices : defaultChoices,
+                    correctAnswer: target.correctAnswer || (target.type === 'true_false' ? 'true' : 'a'),
+                    acceptedAnswersStr: (target.acceptedAnswers || []).join(', '),
+                    sampleAnswerRubric: target.sampleAnswerRubric || '',
+                    explanation: target.explanation || '',
+                  });
+                }}
+                className="flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm"
+              >
+                <Pencil className="size-3.5" /> Edit Question
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingQuestion(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Question Modal */}
+      {editingQuestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in" onClick={() => setEditingQuestion(null)}>
+          <div className="w-full max-w-xl rounded-3xl border border-card-border bg-card p-6 shadow-2xl animate-rise max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-9 place-items-center rounded-xl bg-teal-700/10 text-teal-700">
+                  <Pencil className="size-5" />
+                </span>
+                <div>
+                  <h3 className="font-display text-base font-bold text-foreground">Edit Question</h3>
+                  <p className="text-xs text-muted-foreground">ID #{editingQuestion.id} · Update prompt, choices, and scoring</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingQuestion(null)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditQuestionSubmit} className="mt-5 space-y-4 text-xs">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-bold text-foreground">Subject <span className="text-destructive">*</span></label>
+                  <select
+                    required
+                    value={editQForm.subjectId}
+                    onChange={(e) => setEditQForm({ ...editQForm, subjectId: Number(e.target.value), lessonId: '' })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    {store.subjects.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-foreground">Related Lesson (Optional)</label>
+                  <select
+                    value={editQForm.lessonId}
+                    onChange={(e) => setEditQForm({ ...editQForm, lessonId: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="">None / General Subject</option>
+                    {store.lessons.filter((l) => l.subjectId === Number(editQForm.subjectId)).map((l) => (
+                      <option key={l.id} value={l.id}>{l.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-foreground">Question Type <span className="text-destructive">*</span></label>
+                  <select
+                    value={editQForm.type}
+                    onChange={(e) => {
+                      const nextType = e.target.value as QuestionType;
+                      setEditQForm({
+                        ...editQForm,
+                        type: nextType,
+                        correctAnswer: nextType === 'true_false' ? 'true' : nextType === 'multiple_choice' ? 'a' : '',
+                      });
+                    }}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="multiple_choice">🔘 Multiple Choice</option>
+                    <option value="true_false">⚖️ True or False</option>
+                    <option value="identification">✍️ Identification / Short Answer</option>
+                    <option value="essay">📝 Essay (Manual Grading)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Points</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      required
+                      value={editQForm.points}
+                      onChange={(e) => setEditQForm({ ...editQForm, points: Math.max(1, Number(e.target.value)) })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-mono-ui font-bold text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Difficulty</label>
+                    <select
+                      value={editQForm.difficulty}
+                      onChange={(e) => setEditQForm({ ...editQForm, difficulty: e.target.value as DifficultyLevel })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    >
+                      <option value="easy">🟢 Easy</option>
+                      <option value="medium">🟡 Medium</option>
+                      <option value="hard">🔴 Hard</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-foreground">Question Text <span className="text-destructive">*</span></label>
+                <textarea
+                  required
+                  rows={2}
+                  value={editQForm.text}
+                  onChange={(e) => setEditQForm({ ...editQForm, text: e.target.value })}
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                />
+              </div>
+
+              {/* Multiple Choice Choices editor */}
+              {editQForm.type === 'multiple_choice' && (
+                <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-foreground">
+                      Choices (Radio selects correct answer) <span className="text-destructive">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextLetter = String.fromCharCode(97 + editQForm.choices.length);
+                        setEditQForm({
+                          ...editQForm,
+                          choices: [...editQForm.choices, { id: nextLetter, value: nextLetter, label: '' }],
+                        });
+                      }}
+                      className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="size-3" /> Add Choice
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {editQForm.choices.map((c, idx) => (
+                      <div key={c.id || idx} className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold uppercase text-muted-foreground shrink-0 w-12">
+                          <input
+                            type="radio"
+                            name="editQFormCorrect"
+                            checked={editQForm.correctAnswer === c.value}
+                            onChange={() => setEditQForm({ ...editQForm, correctAnswer: c.value })}
+                            className="accent-teal-700"
+                          />
+                          {c.value.toUpperCase()}.
+                        </label>
+                        <input
+                          required={idx < 2}
+                          value={c.label}
+                          onChange={(e) => {
+                            const updated = [...editQForm.choices];
+                            updated[idx].label = e.target.value;
+                            setEditQForm({ ...editQForm, choices: updated });
+                          }}
+                          className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                        />
+                        {editQForm.choices.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = editQForm.choices.filter((_, i) => i !== idx);
+                              setEditQForm({
+                                ...editQForm,
+                                choices: updated,
+                                correctAnswer: editQForm.correctAnswer === c.value ? (updated[0]?.value || 'a') : editQForm.correctAnswer,
+                              });
+                            }}
+                            className="p-1 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* True or False */}
+              {editQForm.type === 'true_false' && (
+                <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
+                  <label className="text-xs font-bold text-foreground">Select Correct Answer <span className="text-destructive">*</span></label>
+                  <div className="flex gap-4">
+                    {['true', 'false'].map((val) => (
+                      <label
+                        key={val}
+                        className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold capitalize cursor-pointer transition-colors ${
+                          editQForm.correctAnswer === val ? 'border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300' : 'border-border bg-card text-foreground'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="editTfCorrect"
+                          value={val}
+                          checked={editQForm.correctAnswer === val}
+                          onChange={() => setEditQForm({ ...editQForm, correctAnswer: val })}
+                          className="accent-teal-700"
+                        />
+                        {val === 'true' ? 'True Statement' : 'False Statement'}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Identification */}
+              {editQForm.type === 'identification' && (
+                <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Expected Correct Answer <span className="text-destructive">*</span></label>
+                    <input
+                      required
+                      value={editQForm.correctAnswer}
+                      onChange={(e) => setEditQForm({ ...editQForm, correctAnswer: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Alternative Accepted Answers (comma-separated)</label>
+                    <input
+                      value={editQForm.acceptedAnswersStr}
+                      onChange={(e) => setEditQForm({ ...editQForm, acceptedAnswersStr: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Essay */}
+              {editQForm.type === 'essay' && (
+                <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
+                  <label className="text-xs font-bold text-foreground">Sample Answer / Grading Rubric</label>
+                  <textarea
+                    rows={3}
+                    value={editQForm.sampleAnswerRubric}
+                    onChange={(e) => setEditQForm({ ...editQForm, sampleAnswerRubric: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  />
+                </div>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-bold text-foreground">Explanation / Solution Notes (Optional)</label>
+                  <input
+                    value={editQForm.explanation}
+                    onChange={(e) => setEditQForm({ ...editQForm, explanation: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Publication Status</label>
+                  <select
+                    value={editQForm.status}
+                    onChange={(e) => setEditQForm({ ...editQForm, status: e.target.value as QuestionStatus })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    <option value="published">✅ Published (Live for Quizzes)</option>
+                    <option value="draft">📝 Draft (Internal Review Only)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditingQuestion(null)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 text-xs font-bold shadow-sm transition-all"
+                  data-testid="button-save-edit-question"
+                >
+                  <Save className="size-4" /> Save Question Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Question Bank Picker Modal for Quizzes */}
+      {showQuestionBankPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowQuestionBankPicker(false)}>
+          <div className="w-full max-w-2xl rounded-3xl border border-card-border bg-card p-6 shadow-2xl animate-rise max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border pb-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-xl bg-teal-700/10 text-teal-700">
+                  <FileQuestion className="size-5" />
+                </span>
+                <div>
+                  <h3 className="font-display text-base font-bold text-foreground">Select from Question Bank</h3>
+                  <p className="text-xs text-muted-foreground">Browse published questions and import them directly into your quiz</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuestionBankPicker(false)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Filter toolbar inside picker */}
+            <div className="py-3 border-b border-border space-y-2.5 shrink-0 bg-muted/10 px-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex-1 min-w-[180px] flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs">
+                  <Search className="size-3.5 text-muted-foreground" />
+                  <input
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Search question bank..."
+                    className="w-full bg-transparent outline-none text-xs"
+                  />
+                </div>
+
+                <select
+                  value={pickerTypeFilter}
+                  onChange={(e) => setPickerTypeFilter(e.target.value)}
+                  className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold outline-none"
+                >
+                  <option value="all">All Types</option>
+                  <option value="multiple_choice">Multiple Choice</option>
+                  <option value="true_false">True / False</option>
+                  <option value="identification">Identification</option>
+                  <option value="essay">Essay</option>
+                </select>
+
+                <select
+                  value={pickerLessonFilter}
+                  onChange={(e) => setPickerLessonFilter(e.target.value)}
+                  className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold outline-none"
+                >
+                  <option value="all">All Lessons</option>
+                  {store.lessons.map((l) => (
+                    <option key={l.id} value={l.id}>{l.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selection summary & quick toggle */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  <b>{selectedBankQuestionIds.length}</b> question(s) currently selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentSubjectId = pickerTarget === 'create' ? quizForm.subjectId : editQuizForm.subjectId;
+                      const available = store.questions.filter((q) => {
+                        const matchSubject = !currentSubjectId || q.subjectId === Number(currentSubjectId);
+                        const matchStatus = q.status === 'published';
+                        const matchType = pickerTypeFilter === 'all' || q.type === pickerTypeFilter;
+                        const matchLesson = pickerLessonFilter === 'all' || q.lessonId === Number(pickerLessonFilter);
+                        const matchSearch = `${q.text} ${q.subjectName}`.toLowerCase().includes(pickerSearch.toLowerCase());
+                        return matchSubject && matchStatus && matchType && matchLesson && matchSearch;
+                      });
+                      setSelectedBankQuestionIds(Array.from(new Set([...selectedBankQuestionIds, ...available.map((q) => q.id)])));
+                    }}
+                    className="text-teal-700 hover:underline font-bold text-xs"
+                  >
+                    Select All Matching
+                  </button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBankQuestionIds([])}
+                    className="text-muted-foreground hover:text-foreground font-medium text-xs"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Questions scrollable list */}
+            <div className="flex-1 overflow-y-auto py-2 divide-y divide-border/60">
+              {(() => {
+                const currentSubjectId = pickerTarget === 'create' ? quizForm.subjectId : editQuizForm.subjectId;
+                const filteredBank = store.questions.filter((q) => {
+                  const matchSubject = !currentSubjectId || q.subjectId === Number(currentSubjectId);
+                  const matchStatus = q.status === 'published';
+                  const matchType = pickerTypeFilter === 'all' || q.type === pickerTypeFilter;
+                  const matchLesson = pickerLessonFilter === 'all' || q.lessonId === Number(pickerLessonFilter);
+                  const matchSearch = `${q.text} ${q.subjectName} ${q.lessonTitle || ''}`.toLowerCase().includes(pickerSearch.toLowerCase());
+                  return matchSubject && matchStatus && matchType && matchLesson && matchSearch;
+                });
+
+                if (filteredBank.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-xs text-muted-foreground space-y-2">
+                      <p className="font-bold text-foreground">No Published Questions Found</p>
+                      <p className="max-w-xs mx-auto">
+                        No published questions match the current filters for subject "{store.subjects.find((s) => s.id === Number(currentSubjectId))?.name || 'Current'}". Add or publish questions in the Question Bank first.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return filteredBank.map((q) => {
+                  const isSelected = selectedBankQuestionIds.includes(q.id);
+                  return (
+                    <label
+                      key={q.id}
+                      className={`flex items-start gap-3 p-3 transition-colors cursor-pointer rounded-xl my-1 ${
+                        isSelected ? 'bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60' : 'hover:bg-muted/30 border border-transparent'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          if (isSelected) {
+                            setSelectedBankQuestionIds((prev) => prev.filter((id) => id !== q.id));
+                          } else {
+                            setSelectedBankQuestionIds((prev) => [...prev, q.id]);
+                          }
+                        }}
+                        className="mt-1 accent-teal-700 size-4 rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground leading-snug">{q.text}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]">
+                          <span className="font-semibold text-teal-700 font-mono-ui uppercase">
+                            {q.type.replace('_', ' ')}
+                          </span>
+                          <span>•</span>
+                          <span className="font-mono-ui font-bold text-foreground">{q.points || 1} pt(s)</span>
+                          <span>•</span>
+                          <span className="capitalize text-muted-foreground">{q.difficulty}</span>
+                          {q.lessonTitle && (
+                            <>
+                              <span>•</span>
+                              <span className="text-muted-foreground truncate max-w-[180px]">{q.lessonTitle}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t border-border pt-4 shrink-0 bg-card">
+              <span className="text-xs text-muted-foreground">
+                {selectedBankQuestionIds.length} question(s) marked for import
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowQuestionBankPicker(false)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pickedQuestions = store.questions
+                      .filter((q) => selectedBankQuestionIds.includes(q.id))
+                      .map((q, idx) => questionBankItemToQuizQuestion(q, idx + 1));
+
+                    if (pickerTarget === 'create') {
+                      setQuizFormQuestions(pickedQuestions);
+                    } else {
+                      setEditQuizFormQuestions(pickedQuestions);
+                    }
+                    setShowQuestionBankPicker(false);
+                    toast({
+                      title: 'Questions Attached',
+                      description: `Imported ${pickedQuestions.length} question(s) from Question Bank into quiz.`,
+                    });
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-5 py-2 text-xs font-bold shadow-sm transition-all"
+                >
+                  <Check className="size-4" /> Import Selected Questions
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 function AdminResultsPage() {
-  const { results, students, quizzes, subjects, addManualResult, deleteResult } = usePlatformStore();
+  const { results, students, quizzes, subjects, addManualResult, deleteResult, gradeEssaySubmission } = usePlatformStore();
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
@@ -4040,6 +5988,23 @@ function AdminResultsPage() {
   // Modal states
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [viewingResult, setViewingResult] = useState<any | null>(null);
+
+  // Essay scoring state for manual grading
+  const [essayScores, setEssayScores] = useState<Record<number, number>>({});
+  const [essayFeedback, setEssayFeedback] = useState<string>('');
+
+  useEffect(() => {
+    if (viewingResult?.studentAnswers) {
+      const initial: Record<number, number> = {};
+      viewingResult.studentAnswers.forEach((ans: any) => {
+        if (ans.questionType === 'essay') {
+          initial[ans.questionId] = ans.pointsEarned ?? 0;
+        }
+      });
+      setEssayScores(initial);
+      setEssayFeedback(viewingResult.feedback || '');
+    }
+  }, [viewingResult]);
 
   // Form states for manual grading
   const [recordStudentName, setRecordStudentName] = useState(students[0]?.fullName || '');
@@ -4351,6 +6316,11 @@ function AdminResultsPage() {
                             {r.passed ? <Check className="size-3" /> : <X className="size-3" />}
                             {r.passed ? 'Passed' : 'Failed'}
                           </span>
+                          {r.needsGrading && (
+                            <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight w-fit bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                              <Pencil className="size-2.5" /> Pending Essay Grading
+                            </span>
+                          )}
                           {r.submissionStatus && (
                             <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight w-fit ${
                               r.submissionStatus.includes('Expired') || r.submissionStatus.includes('Auto')
@@ -4533,8 +6503,8 @@ function AdminResultsPage() {
 
       {/* MODAL 2: DETAILED GRADE EVALUATION & SLIP */}
       {viewingResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-lg rounded-3xl border border-card-border bg-card p-6 md:p-8 shadow-2xl animate-rise">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-fade-in" onClick={() => setViewingResult(null)}>
+          <div className="w-full max-w-xl rounded-3xl border border-card-border bg-card p-6 md:p-8 shadow-2xl animate-rise max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div className="flex items-center gap-3">
                 <Avatar name={viewingResult.studentName || 'Student'} className="size-10" />
@@ -4622,6 +6592,116 @@ function AdminResultsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Question-by-Question Assessment Review & Essay Grading */}
+              {viewingResult.studentAnswers && viewingResult.studentAnswers.length > 0 && (
+                <div className="rounded-2xl border border-border bg-background p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
+                      <FileQuestion className="size-3.5 text-teal-700" />
+                      Individual Question Review ({viewingResult.studentAnswers.length})
+                    </label>
+                    {viewingResult.needsGrading && (
+                      <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-300">
+                        Needs Essay Scoring
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1 divide-y divide-border/60">
+                    {viewingResult.studentAnswers.map((ans: any, idx: number) => (
+                      <div key={ans.questionId || idx} className="pt-2.5 first:pt-0 space-y-1.5 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-bold text-foreground leading-snug">
+                            <span className="text-teal-700 font-mono-ui mr-1">Q{idx + 1}.</span> {ans.questionText}
+                          </p>
+                          <span className="font-mono-ui font-semibold text-[10px] text-muted-foreground shrink-0 uppercase">
+                            {ans.questionType?.replace('_', ' ')} · {ans.pointsEarned ?? 0}/{ans.maxPoints || 1} pts
+                          </span>
+                        </div>
+
+                        <div className="rounded-xl border border-border bg-muted/20 p-2.5">
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground">Student Answer:</p>
+                          <p className="mt-0.5 text-xs font-medium text-foreground whitespace-pre-wrap">
+                            {ans.studentAnswer ? ans.studentAnswer : <span className="italic text-muted-foreground">No answer provided</span>}
+                          </p>
+                        </div>
+
+                        {ans.questionType === 'essay' ? (
+                          <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300">
+                                Instructor Evaluation & Score:
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-foreground">Score:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={ans.maxPoints || 10}
+                                  value={essayScores[ans.questionId] ?? (ans.pointsEarned || 0)}
+                                  onChange={(e) => {
+                                    const val = Math.min(ans.maxPoints || 10, Math.max(0, Number(e.target.value)));
+                                    setEssayScores((prev) => ({ ...prev, [ans.questionId]: val }));
+                                  }}
+                                  className="w-16 rounded-lg border border-border bg-card px-2 py-1 text-xs font-bold font-mono-ui outline-none text-center"
+                                />
+                                <span className="text-xs text-muted-foreground font-mono-ui">/ {ans.maxPoints || 1} pts</span>
+                              </div>
+                            </div>
+                            {ans.sampleAnswerRubric && (
+                              <p className="text-[11px] text-muted-foreground">
+                                <span className="font-semibold text-foreground">Rubric Guide:</span> {ans.sampleAnswerRubric}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground">
+                              Correct Key: <span className="font-bold text-teal-700">{ans.correctAnswer}</span>
+                            </span>
+                            <span className={`font-bold ${ans.isCorrect ? 'text-teal-700' : 'text-destructive'}`}>
+                              {ans.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Essay Instructor Feedback and Save */}
+                  {viewingResult.studentAnswers.some((a: any) => a.questionType === 'essay') && (
+                    <div className="pt-2 border-t border-border space-y-2">
+                      <label className="text-xs font-bold text-foreground">Instructor Feedback</label>
+                      <textarea
+                        rows={2}
+                        value={essayFeedback}
+                        onChange={(e) => setEssayFeedback(e.target.value)}
+                        placeholder="Add constructive feedback for the student..."
+                        className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          gradeEssaySubmission(viewingResult.id, essayScores, essayFeedback);
+                          setViewingResult((prev: any) => prev ? {
+                            ...prev,
+                            needsGrading: false,
+                            feedback: essayFeedback,
+                          } : null);
+                          toast({
+                            title: 'Essay Graded!',
+                            description: 'Scores and feedback updated for this submission.',
+                          });
+                        }}
+                        className="flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 text-xs font-bold transition-all shadow-sm"
+                      >
+                        <Save className="size-3.5" /> Save & Finalize Essay Grade
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
