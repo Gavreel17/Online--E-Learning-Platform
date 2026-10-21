@@ -9037,7 +9037,6 @@ function SignUpPage() {
   const [, setLocation] = useLocation();
 
   const [fullName, setFullName] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -9059,7 +9058,6 @@ function SignUpPage() {
     setError('');
 
     const trimmedName = fullName.trim();
-    const trimmedStudentId = studentId.trim();
     const trimmedEmail = email.trim();
     const trimmedUsername = username.trim().toLowerCase();
     const trimmedContact = contactNumber.trim();
@@ -9067,10 +9065,6 @@ function SignUpPage() {
     // 1. Validate required fields
     if (!trimmedName) {
       setError('Please enter your complete name.');
-      return;
-    }
-    if (!trimmedStudentId) {
-      setError('Please enter your Student ID.');
       return;
     }
     if (!trimmedEmail) {
@@ -9118,13 +9112,7 @@ function SignUpPage() {
       return;
     }
 
-    const studentIdExists = store.students.some(
-      (s) => s.studentId && s.studentId.trim().toLowerCase() === trimmedStudentId.toLowerCase()
-    );
-    if (studentIdExists) {
-      setError('A student with this Student ID is already registered in the system.');
-      return;
-    }
+
 
     const usernameExists = store.students.some(
       (s) => s.username && s.username.trim().toLowerCase() === trimmedUsername
@@ -9139,7 +9127,7 @@ function SignUpPage() {
     // 4. Create student record in platform store / database
     store.addStudent({
       fullName: trimmedName,
-      studentId: trimmedStudentId,
+      studentId: `STU-${Date.now()}`,
       email: trimmedEmail,
       username: trimmedUsername,
       contactNumber: trimmedContact || undefined,
@@ -9160,7 +9148,6 @@ function SignUpPage() {
       title: 'Student account created successfully!',
       html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
         Welcome to LumenPath, <b>${trimmedName}</b>!<br/>
-        Your account has been registered with Student ID: <b>${trimmedStudentId}</b>.<br/>
         <span style="display:inline-block; margin-top:12px; padding:6px 14px; background:#f0fdfa; border:1px solid #ccfbf1; border-radius:8px; color:#0f766e; font-weight:700;">
           Please log in to access your student dashboard.
         </span>
@@ -9199,43 +9186,23 @@ function SignUpPage() {
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Complete Name <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => {
-                  setFullName(e.target.value);
-                  setError('');
-                }}
-                placeholder="e.g. Juan Dela Cruz"
-                autoComplete="name"
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-                data-testid="input-signup-fullname"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Student ID <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={studentId}
-                onChange={(e) => {
-                  setStudentId(e.target.value);
-                  setError('');
-                }}
-                placeholder="e.g. STU-2024-001"
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-                data-testid="input-signup-studentid"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-primary">
+              Complete Name <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={(e) => {
+                setFullName(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. Juan Dela Cruz"
+              autoComplete="name"
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+              data-testid="input-signup-fullname"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
