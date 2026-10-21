@@ -7686,14 +7686,11 @@ function TeacherRegisterPage() {
   const [, setLocation] = useLocation();
 
   const [fullName, setFullName] = useState('');
-  const [teacherId, setTeacherId] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [contactNumber, setContactNumber] = useState('');
-  const [department, setDepartment] = useState('Computer Science & IT');
-  const [credentialFile, setCredentialFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -7710,18 +7707,12 @@ function TeacherRegisterPage() {
     setError('');
 
     const trimmedName = fullName.trim();
-    const trimmedTeacherId = teacherId.trim();
     const trimmedEmail = email.trim();
     const trimmedUsername = username.trim().toLowerCase();
     const trimmedContact = contactNumber.trim();
-    const trimmedDept = department.trim();
 
     if (!trimmedName) {
       setError('Please enter your complete name.');
-      return;
-    }
-    if (!trimmedTeacherId) {
-      setError('Please enter your Teacher ID or Employee ID.');
       return;
     }
     if (!trimmedEmail) {
@@ -7757,10 +7748,6 @@ function TeacherRegisterPage() {
       setError('Please enter your contact phone number.');
       return;
     }
-    if (!trimmedDept) {
-      setError('Please select or specify your department/specialization.');
-      return;
-    }
 
     // Duplicate check
     const emailExists = store.teacherApplications.some(
@@ -7771,13 +7758,7 @@ function TeacherRegisterPage() {
       return;
     }
 
-    const teacherIdExists = store.teacherApplications.some(
-      (a) => a.teacherId.toLowerCase() === trimmedTeacherId.toLowerCase()
-    );
-    if (teacherIdExists) {
-      setError('A teacher with this Teacher ID is already registered or has a pending application.');
-      return;
-    }
+
 
     const usernameExists = store.teacherApplications.some(
       (a) => a.username.toLowerCase() === trimmedUsername
@@ -7791,12 +7772,12 @@ function TeacherRegisterPage() {
 
     const newApp = store.addTeacherApplication({
       fullName: trimmedName,
-      teacherId: trimmedTeacherId,
+      teacherId: `TCH-${Date.now()}`,
       email: trimmedEmail,
       username: trimmedUsername,
       contactNumber: trimmedContact,
-      department: trimmedDept,
-      credentialFile: credentialFile || null,
+      department: 'General',
+      credentialFile: null,
       password,
     });
 
@@ -7812,7 +7793,7 @@ function TeacherRegisterPage() {
       title: 'Teacher Application Submitted!',
       html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
         Thank you, <b>${trimmedName}</b>!<br/>
-        Your application for the <b>${trimmedDept}</b> department has been submitted with ID <b>${newApp.teacherId}</b>.<br/>
+        Your application has been submitted with ID <b>${newApp.teacherId}</b>.<br/>
         <span style="display:inline-block; margin-top:12px; padding:6px 14px; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; color:#92400e; font-weight:700;">
           ⏳ Status: Pending Administrator Approval
         </span>
@@ -7854,42 +7835,22 @@ function TeacherRegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Full Name <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => {
-                  setFullName(e.target.value);
-                  setError('');
-                }}
-                placeholder="e.g. Dr. Eleanor Davies"
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-                data-testid="input-teacher-fullname"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Teacher ID or Employee ID <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={teacherId}
-                onChange={(e) => {
-                  setTeacherId(e.target.value);
-                  setError('');
-                }}
-                placeholder="e.g. TCH-2024-101"
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-                data-testid="input-teacher-id"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-primary">
+              Full Name <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={fullName}
+              onChange={(e) => {
+                setFullName(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. Dr. Eleanor Davies"
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+              data-testid="input-teacher-fullname"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -7988,50 +7949,18 @@ function TeacherRegisterPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Contact Number <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="tel"
-                required
-                value={contactNumber}
-                onChange={(e) => setContactNumber(e.target.value)}
-                placeholder="e.g. +63 912 345 6789"
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-                data-testid="input-teacher-contact"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-primary">
-                Department / Specialization <span className="text-destructive">*</span>
-              </label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700 font-medium"
-                data-testid="select-teacher-department"
-              >
-                <option value="Computer Science & IT">Computer Science & IT</option>
-                <option value="Mathematics & Data">Mathematics & Data</option>
-                <option value="Natural Sciences & Physics">Natural Sciences & Physics</option>
-                <option value="Engineering & Robotics">Engineering & Robotics</option>
-                <option value="Business & Finance">Business & Finance</option>
-                <option value="Language & Humanities">Language & Humanities</option>
-                <option value="Health & Medical Sciences">Health & Medical Sciences</option>
-              </select>
-            </div>
-          </div>
-
           <div>
-            <FileUploadDropZone
-              label="Upload Proof of Employment or Teaching Credentials (Optional)"
-              hint="Upload teaching certificate, diploma, or institutional appointment (PDF, DOCX, PNG, JPG - Max 25MB)"
-              file={credentialFile}
-              onFileChange={setCredentialFile}
-              id="teacher-credential-upload"
+            <label className="block text-xs font-bold text-primary">
+              Contact Number <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="tel"
+              required
+              value={contactNumber}
+              onChange={(e) => setContactNumber(e.target.value)}
+              placeholder="e.g. +63 912 345 6789"
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+              data-testid="input-teacher-contact"
             />
           </div>
 
