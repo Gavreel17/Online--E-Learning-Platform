@@ -5559,34 +5559,24 @@ function SignInPage() {
           s.username?.toLowerCase() === searchVal
       );
 
-      const isInputAdmin = trimmedInput.toLowerCase().includes('admin');
-      const targetRole = isInputAdmin ? 'admin' : 'student';
-
+      // Student portal always signs in as student — admin accounts must use /admin/login
       const targetEmail = matchedStudent?.email || (trimmedInput.includes('@') ? trimmedInput : `${searchVal.replace(/\s+/g, '.')}@lumenpath.edu`);
 
       const inferredName = matchedStudent?.fullName || (targetEmail
         ? targetEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
-        : targetRole === 'admin' ? 'Administrator' : 'Student');
+        : 'Student');
 
-      const studentId = matchedStudent?.studentId || (targetRole === 'student' ? `STU-${Math.floor(1000 + Math.random() * 9000)}` : undefined);
+      const studentId = matchedStudent?.studentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      signIn(targetRole, inferredName, targetEmail, studentId);
+      signIn('student', inferredName, targetEmail, studentId);
+      store.recordStudentLogin(targetEmail, inferredName, studentId);
       setIsLoading(false);
 
-      if (targetRole === 'student') {
-        store.recordStudentLogin(targetEmail, inferredName, studentId);
-        toast({
-          title: 'Signed In Successfully',
-          description: `Welcome back, ${inferredName}!`,
-        });
-        setLocation('/student/dashboard');
-      } else {
-        toast({
-          title: 'Admin Session Active',
-          description: `Welcome, ${inferredName}.`,
-        });
-        setLocation('/admin/dashboard');
-      }
+      toast({
+        title: 'Signed In Successfully',
+        description: `Welcome back, ${inferredName}!`,
+      });
+      setLocation('/student/dashboard');
     }, 250);
   };
 
@@ -5614,19 +5604,19 @@ function SignInPage() {
           </p>
         </div>
 
-        {isSignedIn && (
+        {isSignedIn && role === 'student' && (
           <div className="mt-5 rounded-2xl border border-teal-700/20 bg-teal-50/60 p-3.5 text-xs text-teal-900">
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold truncate">
-                Active {role === 'admin' ? 'Admin' : 'Student'}: {user?.fullName || user?.email}
+                Active Student: {user?.fullName || user?.email}
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setLocation(role === 'admin' ? '/admin/dashboard' : '/student/dashboard')}
+                  onClick={() => setLocation('/student/dashboard')}
                   className="font-bold text-teal-800 underline hover:text-teal-950"
                 >
-                  Dashboard →
+                  Go to Dashboard →
                 </button>
                 <button
                   type="button"
@@ -5726,11 +5716,6 @@ function SignInPage() {
             <Link href="/sign-up" className="font-bold text-teal-700 hover:underline">
               Create student account
             </Link>
-            <Link href="/admin/login" className="font-semibold text-muted-foreground hover:text-foreground">
-              Admin console login →
-            </Link>
-          </div>
-          <div className="text-center">
             <Link href="/" className="hover:underline">
               ← Back to home
             </Link>
