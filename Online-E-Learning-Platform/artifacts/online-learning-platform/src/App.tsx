@@ -2958,7 +2958,7 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
               : statusFilter === 'registered'
               ? s.source === 'online_registration'
               : s.status === statusFilter;
-          const matchSearch = `${s.fullName} ${s.studentId} ${s.email} ${s.source || ''}`.toLowerCase().includes(search.toLowerCase());
+          const matchSearch = `${s.fullName} ${s.studentId} ${s.email} ${s.username || ''} ${s.source || ''}`.toLowerCase().includes(search.toLowerCase());
           return matchStatus && matchSearch;
         });
       case 'subjects':
@@ -3463,7 +3463,19 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                         </span>
                       )}
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">{x.email}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground">
+                      <span className="truncate">{x.email}</span>
+                      {x.username && (
+                        <span className="font-mono-ui text-[11px] font-semibold text-teal-700 bg-teal-50 dark:bg-teal-950/40 px-1.5 py-0.2 rounded border border-teal-200 dark:border-teal-800/50">
+                          @{x.username}
+                        </span>
+                      )}
+                      {x.contactNumber && (
+                        <span className="text-[11px] text-muted-foreground">
+                          • {x.contactNumber}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -5559,6 +5571,20 @@ function SignInPage() {
           s.username?.toLowerCase() === searchVal
       );
 
+      // Check account status if registered
+      if (matchedStudent && matchedStudent.status === 'inactive') {
+        setIsLoading(false);
+        setLoginError('Your student account is currently inactive. Please contact an administrator.');
+        return;
+      }
+
+      // If account has a registered password, verify it
+      if (matchedStudent && matchedStudent.password && matchedStudent.password !== password) {
+        setIsLoading(false);
+        setLoginError('Incorrect password. Please verify your credentials and try again.');
+        return;
+      }
+
       // Student portal always signs in as student — admin accounts must use /admin/login
       const targetEmail = matchedStudent?.email || (trimmedInput.includes('@') ? trimmedInput : `${searchVal.replace(/\s+/g, '.')}@lumenpath.edu`);
 
@@ -5666,8 +5692,8 @@ function SignInPage() {
 
         <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
           <div className="flex items-center justify-between">
-            <Link href="/sign-up" className="font-bold text-teal-700 hover:underline">
-              Create student account
+            <Link href="/student/register" className="font-bold text-teal-700 hover:underline" data-testid="link-create-student-account">
+              Create Student Account
             </Link>
             <Link href="/" className="hover:underline">
               ← Back to home
@@ -5680,13 +5706,21 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  const { signIn, isSignedIn, role } = useAuth();
+  const { isSignedIn, role } = useAuth();
   const store = usePlatformStore();
   const [, setLocation] = useLocation();
-  const [name, setName] = useState('');
+
+  const [fullName, setFullName] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -5696,39 +5730,126 @@ function SignUpPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const studentName = name.trim() || 'New Learner';
-    const studentEmail = email.trim() || 'learner@lumenpath.local';
-    const studentId = `STU-${Math.floor(1000 + Math.random() * 9000)}`;
+    setError('');
+
+    const trimmedName = fullName.trim();
+    const trimmedStudentId = studentId.trim();
+    const trimmedEmail = email.trim();
+    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedContact = contactNumber.trim();
+
+    // 1. Validate required fields
+    if (!trimmedName) {
+      setError('Please enter your complete name.');
+      return;
+    }
+    if (!trimmedStudentId) {
+      setError('Please enter your Student ID.');
+      return;
+    }
+    if (!trimmedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!trimmedUsername) {
+      setError('Please choose a username.');
+      return;
+    }
+    if (trimmedUsername.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter a password.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (!confirmPassword) {
+      setError('Please confirm your password.');
+      return;
+    }
+
+    // 2. Validate password match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please verify both password fields.');
+      return;
+    }
+
+    // 3. Duplicate checks against existing database records
+    const emailExists = store.students.some(
+      (s) => s.email?.toLowerCase() === trimmedEmail.toLowerCase()
+    );
+    if (emailExists) {
+      setError('An account with this email address already exists. Please sign in or use a different email.');
+      return;
+    }
+
+    const studentIdExists = store.students.some(
+      (s) => s.studentId && s.studentId.trim().toLowerCase() === trimmedStudentId.toLowerCase()
+    );
+    if (studentIdExists) {
+      setError('A student with this Student ID is already registered in the system.');
+      return;
+    }
+
+    const usernameExists = store.students.some(
+      (s) => s.username && s.username.trim().toLowerCase() === trimmedUsername
+    );
+    if (usernameExists) {
+      setError('This username is already taken. Please choose another username.');
+      return;
+    }
 
     setIsLoading(true);
 
-    // Add student to store first
+    // 4. Create student record in platform store / database
     store.addStudent({
-      fullName: studentName,
-      email: studentEmail,
-      studentId,
+      fullName: trimmedName,
+      studentId: trimmedStudentId,
+      email: trimmedEmail,
+      username: trimmedUsername,
+      contactNumber: trimmedContact || undefined,
+      password,
       source: 'online_registration',
       progress: 0,
     });
 
-    // Use setTimeout so the auth state settles before navigation fires
-    setTimeout(() => {
-      signIn('student', studentName, studentEmail, studentId);
-      store.recordStudentLogin(studentEmail, studentName, studentId);
-      setIsLoading(false);
+    setIsLoading(false);
 
-      toast({
-        title: 'Registration Successful',
-        description: `Welcome ${studentName}! Your student account is active.`,
-      });
+    toast({
+      title: 'Student account created successfully!',
+      description: 'You can now sign in using your new credentials.',
+    });
 
-      setLocation('/student/dashboard');
-    }, 300);
+    Swal.fire({
+      icon: 'success',
+      title: 'Student account created successfully!',
+      html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
+        Welcome to LumenPath, <b>${trimmedName}</b>!<br/>
+        Your account has been registered with Student ID: <b>${trimmedStudentId}</b>.<br/>
+        <span style="display:inline-block; margin-top:12px; padding:6px 14px; background:#f0fdfa; border:1px solid #ccfbf1; border-radius:8px; color:#0f766e; font-weight:700;">
+          Please sign in to access your student dashboard.
+        </span>
+      </div>`,
+      confirmButtonText: 'Proceed to Sign In',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+    }).then(() => {
+      setLocation('/student/login');
+    });
   };
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl animate-rise">
+      <div className="w-full max-w-xl rounded-3xl border border-card-border bg-card p-8 sm:p-10 shadow-xl animate-rise">
         <div className="text-center">
           <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
             <GraduationCap className="size-7" />
@@ -5736,77 +5857,194 @@ function SignUpPage() {
           <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
             Student Portal
           </p>
-          <h1 className="mt-1 font-display text-2xl font-extrabold text-primary">Create Account</h1>
-          <p className="mt-1 text-xs text-muted-foreground">Join LumenPath and start your learning journey today.</p>
+          <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-primary">
+            Create Student Account
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Join LumenPath and start your personalized learning journey today.
+          </p>
         </div>
 
+        {error && (
+          <div className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-center gap-2.5">
+            <ShieldAlert className="size-4 shrink-0" />
+            <span className="font-medium">{error}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-primary">Full Name</label>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Juan Dela Cruz"
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-              data-testid="input-signup-name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-primary">Email Address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="juan@example.com"
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-              data-testid="input-signup-email"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-primary">Password</label>
-            <div className="relative mt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Complete Name <span className="text-destructive">*</span>
+              </label>
               <input
-                type={showPassword ? 'text' : 'password'}
+                type="text"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
-                data-testid="input-signup-password"
+                value={fullName}
+                onChange={(e) => {
+                  setFullName(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. Juan Dela Cruz"
+                autoComplete="name"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signup-fullname"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                tabIndex={-1}
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Student ID <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={studentId}
+                onChange={(e) => {
+                  setStudentId(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. STU-2024-001"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signup-studentid"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Email Address <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError('');
+                }}
+                placeholder="juan@example.com"
+                autoComplete="email"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signup-email"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Username <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. juan.delacruz"
+                autoComplete="username"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signup-username"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Password <span className="text-destructive">*</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="•••••••• (min 6 chars)"
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                  data-testid="input-signup-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Confirm Password <span className="text-destructive">*</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="•••••••• (re-enter password)"
+                  autoComplete="new-password"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                  data-testid="input-signup-confirm-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-primary">
+              Contact Number <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <input
+              type="tel"
+              value={contactNumber}
+              onChange={(e) => setContactNumber(e.target.value)}
+              placeholder="e.g. +63 912 345 6789"
+              autoComplete="tel"
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+              data-testid="input-signup-contact"
+            />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+            className="mt-3 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
             data-testid="button-signup-submit"
           >
-            {isLoading ? 'Creating account...' : 'Create My Student Account'}
+            {isLoading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
-          <Link href="/student/login" className="font-bold text-teal-700 hover:underline">
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+          <Link href="/student/login" className="font-bold text-teal-700 hover:underline" data-testid="link-signin">
             Already have an account? Sign in
           </Link>
-          <Link href="/" className="hover:underline">
-            ← Back to home
+          <Link href="/" className="hover:underline" data-testid="link-back-home">
+            ← Back to Home
           </Link>
         </div>
       </div>

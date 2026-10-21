@@ -107,6 +107,8 @@ export interface StudentRecord {
   studentId: string;
   email: string;
   username?: string;
+  contactNumber?: string;
+  password?: string;
   status: 'active' | 'inactive';
   progress: number;
   source?: 'online_registration' | 'admin_enrolled';
@@ -178,6 +180,8 @@ interface PlatformStoreContextType {
     email: string;
     studentId?: string;
     username?: string;
+    contactNumber?: string;
+    password?: string;
     source?: 'online_registration' | 'admin_enrolled';
     progress?: number;
   }) => StudentRecord;
@@ -335,6 +339,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
                 studentId: u.studentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`,
                 email: u.email,
                 username: u.username || u.email?.split('@')[0],
+                contactNumber: u.contactNumber,
+                password: u.password,
                 status: u.status || 'active',
                 progress: u.progress || 0,
                 source: u.source || 'online_registration',
@@ -886,6 +892,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     email: string;
     studentId?: string;
     username?: string;
+    contactNumber?: string;
+    password?: string;
     source?: 'online_registration' | 'admin_enrolled';
     progress?: number;
   }) => {
@@ -899,6 +907,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       studentId: stuId,
       email: data.email.trim(),
       username: data.username || data.fullName.toLowerCase().replace(/\s+/g, '.'),
+      contactNumber: data.contactNumber,
+      password: data.password,
       status: 'active',
       progress: data.progress ?? 0,
       source: data.source || 'online_registration',
@@ -920,10 +930,13 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     try {
       const regUsersRaw = localStorage.getItem('lumenpath_registered_users');
       const regUsers = regUsersRaw ? JSON.parse(regUsersRaw) : [];
-      if (!regUsers.some((u: any) => u.email?.toLowerCase() === data.email.trim().toLowerCase())) {
+      const matchIdx = regUsers.findIndex((u: any) => u.email?.toLowerCase() === data.email.trim().toLowerCase());
+      if (matchIdx >= 0) {
+        regUsers[matchIdx] = { ...regUsers[matchIdx], ...newStu };
+      } else {
         regUsers.push(newStu);
-        localStorage.setItem('lumenpath_registered_users', JSON.stringify(regUsers));
       }
+      localStorage.setItem('lumenpath_registered_users', JSON.stringify(regUsers));
     } catch {
       // ignore
     }
