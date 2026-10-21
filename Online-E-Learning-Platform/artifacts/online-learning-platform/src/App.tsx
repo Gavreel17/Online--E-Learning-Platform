@@ -7472,6 +7472,13 @@ function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    setName('');
+    setEmail('');
+    setPassword('');
+    setSecretCode('');
+  }, [isRegistering]);
+
   const handleAdminAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -7557,47 +7564,118 @@ function AdminLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleAdminAuth} className="mt-6 space-y-4">
+        <form onSubmit={handleAdminAuth} className="mt-6 space-y-4" autoComplete="off">
+          {/* Decoy hidden inputs to divert aggressive browser credential autofill */}
+          <div className="sr-only" aria-hidden="true" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}>
+            <input type="text" name="decoy_adm_login" tabIndex={-1} autoComplete="off" />
+            <input type="password" name="decoy_adm_pass" tabIndex={-1} autoComplete="new-password" />
+          </div>
+
           {isRegistering && (
             <div>
-              <label className="block text-xs font-bold text-primary">Full Name</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-primary">Full Name</label>
+                {name && (
+                  <button
+                    type="button"
+                    onClick={() => setName('')}
+                    className="text-[11px] font-semibold text-teal-700 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
               <div className="relative mt-1">
                 <input
                   type="text"
+                  name="admin_user_fullname"
+                  id="admin_user_fullname"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Maria Santos"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                  autoComplete="off"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-8 text-sm outline-none focus:border-teal-700"
                 />
+                {name && (
+                  <button
+                    type="button"
+                    onClick={() => setName('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Clear input"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-primary">Admin Email / Username</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Admin Email / Username</label>
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => setEmail('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="relative mt-1">
               <input
                 type="text"
+                name="admin_user_login"
+                id="admin_user_login"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@lumenpath.local"
-                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-8 text-sm outline-none focus:border-teal-700"
                 data-testid="input-admin-email"
               />
+              {email && (
+                <button
+                  type="button"
+                  onClick={() => setEmail('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Clear input"
+                >
+                  <X className="size-4" />
+                </button>
+              )}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-primary">Security Password</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Security Password</label>
+              {password && (
+                <button
+                  type="button"
+                  onClick={() => setPassword('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="relative mt-1">
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="admin_user_secret"
+                id="admin_user_secret"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
                 data-testid="input-admin-password"
               />
@@ -8006,6 +8084,12 @@ function TeacherLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    setIdentifier('');
+    setPassword('');
+    setLoginError('');
+  }, []);
+
   if (isSignedIn && role === 'teacher') {
     return <Redirect to="/teacher/dashboard" />;
   }
@@ -8130,28 +8214,76 @@ function TeacherLoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleTeacherSignIn} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-primary">Email, Teacher ID, or Username</label>
-            <input
-              type="text"
-              required
-              value={identifier}
-              onChange={(e) => {
-                setIdentifier(e.target.value);
-                setLoginError('');
-              }}
-              placeholder="e.g. sarah.jenkins@lumenpath.edu or TCH-2024-002"
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-              data-testid="input-teacher-login-id"
-            />
+        <form onSubmit={handleTeacherSignIn} className="mt-6 space-y-4" autoComplete="off">
+          {/* Decoy hidden inputs to divert aggressive browser credential autofill */}
+          <div className="sr-only" aria-hidden="true" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}>
+            <input type="text" name="decoy_tch_login" tabIndex={-1} autoComplete="off" />
+            <input type="password" name="decoy_tch_pass" tabIndex={-1} autoComplete="new-password" />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-primary">Password</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Email, Teacher ID, or Username</label>
+              {identifier && (
+                <button
+                  type="button"
+                  onClick={() => setIdentifier('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                name="teacher_user_login"
+                id="teacher_user_login"
+                required
+                value={identifier}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  setLoginError('');
+                }}
+                placeholder="e.g. sarah.jenkins@lumenpath.edu or TCH-2024-002"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-8 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-login-id"
+              />
+              {identifier && (
+                <button
+                  type="button"
+                  onClick={() => setIdentifier('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Clear input"
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Password</label>
+              {password && (
+                <button
+                  type="button"
+                  onClick={() => setPassword('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="relative mt-1">
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="teacher_user_pass"
+                id="teacher_user_pass"
                 required
                 value={password}
                 onChange={(e) => {
@@ -8159,6 +8291,7 @@ function TeacherLoginPage() {
                   setLoginError('');
                 }}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
                 data-testid="input-teacher-login-password"
               />
@@ -8875,6 +9008,13 @@ function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Ensure fields are completely blank on mount and clear any browser autofill
+  useEffect(() => {
+    setIdentifier('');
+    setPassword('');
+    setLoginError('');
+  }, []);
+
   const handleCustomSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -8937,7 +9077,6 @@ function LoginPage() {
     }, 250);
   };
 
-
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl animate-rise">
@@ -8956,8 +9095,6 @@ function LoginPage() {
           </p>
         </div>
 
-
-
         {loginError && (
           <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
             <ShieldAlert className="size-4 shrink-0" />
@@ -8965,29 +9102,76 @@ function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleCustomSignIn} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-primary">Email, Student ID, or Username</label>
-            <input
-              type="text"
-              required
-              value={identifier}
-              onChange={(e) => {
-                setIdentifier(e.target.value);
-                setLoginError('');
-              }}
-              placeholder="e.g. student@lumenpath.edu or STU-1001"
-              autoComplete="username"
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-              data-testid="input-signin-email"
-            />
+        <form onSubmit={handleCustomSignIn} className="mt-6 space-y-4" autoComplete="off">
+          {/* Decoy hidden inputs to divert aggressive browser credential autofill */}
+          <div className="sr-only" aria-hidden="true" style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}>
+            <input type="text" name="decoy_user_login" tabIndex={-1} autoComplete="off" />
+            <input type="password" name="decoy_user_secret" tabIndex={-1} autoComplete="new-password" />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-primary">Password</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Email, Student ID, or Username</label>
+              {identifier && (
+                <button
+                  type="button"
+                  onClick={() => setIdentifier('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="relative mt-1">
+              <input
+                type="text"
+                name="student_user_login"
+                id="student_user_login"
+                required
+                value={identifier}
+                onChange={(e) => {
+                  setIdentifier(e.target.value);
+                  setLoginError('');
+                }}
+                placeholder="e.g. student@lumenpath.edu or STU-1001"
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-8 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signin-email"
+              />
+              {identifier && (
+                <button
+                  type="button"
+                  onClick={() => setIdentifier('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  title="Clear input"
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-primary">Password</label>
+              {password && (
+                <button
+                  type="button"
+                  onClick={() => setPassword('')}
+                  className="text-[11px] font-semibold text-teal-700 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="relative mt-1">
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="student_user_pass"
+                id="student_user_pass"
                 required
                 value={password}
                 onChange={(e) => {
@@ -8995,7 +9179,7 @@ function LoginPage() {
                   setLoginError('');
                 }}
                 placeholder="••••••••"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
                 data-testid="input-signin-password"
               />
