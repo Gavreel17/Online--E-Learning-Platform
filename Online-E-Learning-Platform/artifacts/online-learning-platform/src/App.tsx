@@ -408,6 +408,7 @@ const studentNav = [
   ['/student/dashboard', 'Dashboard', LayoutDashboard],
   ['/student/subjects', 'Subjects', BookOpen],
   ['/student/lessons', 'Lessons', BookOpenCheck],
+  ['/student/library', 'Library', Paperclip],
   ['/student/quizzes', 'Quizzes', ClipboardList],
   ['/student/results', 'Results', Trophy],
   ['/student/progress', 'Progress', LineChart],
@@ -8847,6 +8848,10 @@ function TeacherLibraryPage() {
   return <LessonsPage />;
 }
 
+function StudentLibraryPage() {
+  return <LessonsPage />;
+}
+
 function TeacherQuizzesPage() {
   return <AdminTablePage kind="quizzes" />;
 }
@@ -9432,6 +9437,8 @@ function Router() {
         <Route path="/student/lessons/:id"><Protected><LessonDetail /></Protected></Route>
         <Route path="/student/lessons"><Protected><LessonsPage /></Protected></Route>
         <Route path="/student/lessons/*?"><Protected><LessonsPage /></Protected></Route>
+        <Route path="/student/library"><Protected><StudentLibraryPage /></Protected></Route>
+        <Route path="/student/library/*?"><Protected><StudentLibraryPage /></Protected></Route>
         <Route path="/student/quizzes/:id"><Protected><QuizDetail /></Protected></Route>
         <Route path="/student/quizzes"><Protected><QuizzesPage /></Protected></Route>
         <Route path="/student/quizzes/*?"><Protected><QuizzesPage /></Protected></Route>
