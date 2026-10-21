@@ -405,7 +405,7 @@ function FileAttachmentCard({
 }
 
 const studentNav = [
-  ['/student/dashboard', 'Overview', LayoutDashboard],
+  ['/student/dashboard', 'Dashboard', LayoutDashboard],
   ['/student/subjects', 'Subjects', BookOpen],
   ['/student/lessons', 'Lessons', BookOpenCheck],
   ['/student/quizzes', 'Quizzes', ClipboardList],
@@ -415,7 +415,7 @@ const studentNav = [
 ];
 
 const teacherNav = [
-  ['/teacher/dashboard', 'Overview', LayoutDashboard],
+  ['/teacher/dashboard', 'Dashboard', LayoutDashboard],
   ['/teacher/subjects', 'My Subjects', BookOpen],
   ['/teacher/lessons', 'Lessons', BookOpenCheck],
   ['/teacher/library', 'Library', Paperclip],
@@ -427,7 +427,7 @@ const teacherNav = [
 ];
 
 const adminNav = [
-  ['/admin/dashboard', 'Overview', LayoutDashboard],
+  ['/admin/dashboard', 'Dashboard', LayoutDashboard],
   ['/admin/teacher-applications', 'Teacher Applications', ShieldCheck],
   ['/admin/students', 'Students', Users],
   ['/admin/subjects', 'Subjects', BookOpen],
@@ -2644,7 +2644,7 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
               </span>
             </div>
             <h1 className="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Platform Operations & Overview
+              Platform Operations & Dashboard
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-primary-foreground/75">
               Comprehensive real-time telemetry, learner milestones, curriculum delivery health, and assessment monitoring.
@@ -5050,7 +5050,7 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
               <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
                 {activitySearch
                   ? 'No activity matches your search filter.'
-                  : 'As students sign in to their learning dashboard, their login timestamps, dates, and email addresses will automatically be recorded here.'}
+                  : 'As students log in to their learning dashboard, their login timestamps, dates, and email addresses will automatically be recorded here.'}
               </p>
             </div>
           ) : (
@@ -6983,7 +6983,7 @@ function ReportsPage() {
         {/* Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/60 p-1">
           {[
-            { id: 'overview', label: 'Overview & Insights', icon: LayoutDashboard },
+            { id: 'overview', label: 'Dashboard & Insights', icon: LayoutDashboard },
             { id: 'students', label: `Students (${studentRows.length})`, icon: Users },
             { id: 'quizzes', label: `Quizzes (${quizRows.length})`, icon: FileQuestion },
             { id: 'subjects', label: `Curriculum (${subjectRows.length})`, icon: BookOpen },
@@ -7537,7 +7537,7 @@ function AdminLoginPage() {
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {isRegistering 
               ? 'Create a new institutional administrator account.'
-              : 'Sign in with verified educator or administrative credentials.'}
+              : 'Log in with verified educator or administrative credentials.'}
           </p>
         </div>
 
@@ -7643,7 +7643,7 @@ function AdminLoginPage() {
             className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
             data-testid="button-admin-signin-submit"
           >
-            {isLoading ? 'Verifying...' : (isRegistering ? 'Register Admin Account' : 'Sign in to Admin Console')}
+            {isLoading ? 'Verifying...' : (isRegistering ? 'Register Admin Account' : 'Log in to Admin Console')}
           </button>
         </form>
 
@@ -7658,7 +7658,7 @@ function AdminLoginPage() {
               }} 
               className="font-bold text-teal-700 hover:underline"
             >
-              {isRegistering ? "Sign in instead" : "Register here"}
+              {isRegistering ? "Log in instead" : "Register here"}
             </button>
           </p>
           
@@ -8177,7 +8177,7 @@ function TeacherLoginPage() {
             Teacher Login
           </h1>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Sign in with your approved instructor credentials to manage courses, lessons, and student assessments.
+            Log in with your approved instructor credentials to manage courses, lessons, and student assessments.
           </p>
         </div>
 
@@ -8249,7 +8249,7 @@ function TeacherLoginPage() {
             className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
             data-testid="button-teacher-signin-submit"
           >
-            {isLoading ? 'Verifying credentials...' : 'Sign in as Teacher'}
+            {isLoading ? 'Verifying credentials...' : 'Log in as Teacher'}
           </button>
         </form>
 
@@ -8930,7 +8930,7 @@ function TeacherResultsPage() {
   return <AdminResultsPage />;
 }
 
-function SignInPage() {
+function LoginPage() {
   const { signIn, signOut, user, isSignedIn, role } = useAuth();
   const store = usePlatformStore();
   const [location, setLocation] = useLocation();
@@ -8996,7 +8996,7 @@ function SignInPage() {
       setIsLoading(false);
 
       toast({
-        title: 'Signed In Successfully',
+        title: 'Logged In Successfully',
         description: `Welcome back, ${inferredName}!`,
       });
       setLocation('/student/dashboard');
@@ -9018,7 +9018,7 @@ function SignInPage() {
             Student Login
           </h1>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Sign in with your student account to access lessons, quizzes, and track your progress.
+            Log in with your student account to access lessons, quizzes, and track your progress.
           </p>
         </div>
 
@@ -9083,7 +9083,7 @@ function SignInPage() {
             className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
             data-testid="button-signin-submit"
           >
-            {isLoading ? 'Signing in...' : 'Sign in as Student'}
+            {isLoading ? 'Logging in...' : 'Log in as Student'}
           </button>
         </form>
 
@@ -9185,7 +9185,7 @@ function SignUpPage() {
       (s) => s.email?.toLowerCase() === trimmedEmail.toLowerCase()
     );
     if (emailExists) {
-      setError('An account with this email address already exists. Please sign in or use a different email.');
+      setError('An account with this email address already exists. Please log in or use a different email.');
       return;
     }
 
@@ -9223,7 +9223,7 @@ function SignUpPage() {
 
     toast({
       title: 'Student account created successfully!',
-      description: 'You can now sign in using your new credentials.',
+      description: 'You can now log in using your new credentials.',
     });
 
     Swal.fire({
@@ -9233,10 +9233,10 @@ function SignUpPage() {
         Welcome to LumenPath, <b>${trimmedName}</b>!<br/>
         Your account has been registered with Student ID: <b>${trimmedStudentId}</b>.<br/>
         <span style="display:inline-block; margin-top:12px; padding:6px 14px; background:#f0fdfa; border:1px solid #ccfbf1; border-radius:8px; color:#0f766e; font-weight:700;">
-          Please sign in to access your student dashboard.
+          Please log in to access your student dashboard.
         </span>
       </div>`,
-      confirmButtonText: 'Proceed to Sign In',
+      confirmButtonText: 'Proceed to Login',
       confirmButtonColor: '#0f766e',
       allowOutsideClick: false,
     }).then(() => {
@@ -9438,7 +9438,7 @@ function SignUpPage() {
 
         <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
           <Link href="/student/login" className="font-bold text-teal-700 hover:underline" data-testid="link-signin">
-            Already have an account? Sign in
+            Already have an account? Log in
           </Link>
           <Link href="/" className="hover:underline" data-testid="link-back-home">
             ← Back to Home
@@ -9457,20 +9457,20 @@ function Router() {
         <Route path="/" component={HomeRedirect} />
 
         {/* Student Auth & Login Routes */}
-        <Route path="/student/login"><SignInPage /></Route>
-        <Route path="/student/login/*?"><SignInPage /></Route>
-        <Route path="/student/sign-in"><SignInPage /></Route>
-        <Route path="/student/sign-in/*?"><SignInPage /></Route>
-        <Route path="/student/signin"><SignInPage /></Route>
-        <Route path="/student/signin/*?"><SignInPage /></Route>
-        <Route path="/student-login"><SignInPage /></Route>
-        <Route path="/student-login/*?"><SignInPage /></Route>
-        <Route path="/login"><SignInPage /></Route>
-        <Route path="/login/*?"><SignInPage /></Route>
-        <Route path="/signin"><SignInPage /></Route>
-        <Route path="/signin/*?"><SignInPage /></Route>
-        <Route path="/sign-in"><SignInPage /></Route>
-        <Route path="/sign-in/*?"><SignInPage /></Route>
+        <Route path="/student/login"><LoginPage /></Route>
+        <Route path="/student/login/*?"><LoginPage /></Route>
+        <Route path="/student/sign-in"><LoginPage /></Route>
+        <Route path="/student/sign-in/*?"><LoginPage /></Route>
+        <Route path="/student/signin"><LoginPage /></Route>
+        <Route path="/student/signin/*?"><LoginPage /></Route>
+        <Route path="/student-login"><LoginPage /></Route>
+        <Route path="/student-login/*?"><LoginPage /></Route>
+        <Route path="/login"><LoginPage /></Route>
+        <Route path="/login/*?"><LoginPage /></Route>
+        <Route path="/signin"><LoginPage /></Route>
+        <Route path="/signin/*?"><LoginPage /></Route>
+        <Route path="/sign-in"><LoginPage /></Route>
+        <Route path="/sign-in/*?"><LoginPage /></Route>
 
         {/* Student Registration Routes */}
         <Route path="/student/register"><SignUpPage /></Route>
