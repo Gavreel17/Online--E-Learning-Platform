@@ -4,9 +4,10 @@ export interface UserProfile {
   id: string;
   fullName: string;
   email: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'teacher' | 'admin';
   studentId: string;
   avatarUrl?: string | null;
+  department?: string;
 }
 
 export const DEFAULT_STUDENT: UserProfile = {
@@ -14,6 +15,15 @@ export const DEFAULT_STUDENT: UserProfile = {
   fullName: 'Student',
   email: '',
   role: 'student',
+  studentId: '',
+  avatarUrl: null,
+};
+
+export const DEFAULT_TEACHER: UserProfile = {
+  id: '',
+  fullName: 'Instructor',
+  email: '',
+  role: 'teacher',
   studentId: '',
   avatarUrl: null,
 };
@@ -31,11 +41,11 @@ interface AuthContextType {
   isSignedIn: boolean;
   isLoaded: boolean;
   user: UserProfile | null;
-  role: 'student' | 'admin';
-  signIn: (role?: 'student' | 'admin', name?: string, email?: string, studentId?: string) => void;
-  signUp: (name: string, email: string, role?: 'student' | 'admin') => void;
+  role: 'student' | 'teacher' | 'admin';
+  signIn: (role?: 'student' | 'teacher' | 'admin', name?: string, email?: string, studentId?: string, department?: string) => void;
+  signUp: (name: string, email: string, role?: 'student' | 'teacher' | 'admin') => void;
   signOut: () => void;
-  switchRole: (role: 'student' | 'admin') => void;
+  switchRole: (role: 'student' | 'teacher' | 'admin') => void;
   updateUser: (data: Partial<UserProfile>) => void;
 }
 
@@ -70,9 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const signIn = (role: 'student' | 'admin' = 'student', name?: string, email?: string, customStudentId?: string) => {
+  const signIn = (role: 'student' | 'teacher' | 'admin' = 'student', name?: string, email?: string, customStudentId?: string, department?: string) => {
     const id = `user_${Date.now()}`;
-    const studentId = customStudentId || (role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`);
+    const studentId = customStudentId || (role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : role === 'teacher' ? `TCH-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`);
     if (role === 'admin') {
       setUser({
         ...DEFAULT_ADMIN,
@@ -80,6 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: name || 'Administrator',
         email: email || 'admin@lumenpath.edu',
         studentId,
+        department,
+      });
+    } else if (role === 'teacher') {
+      setUser({
+        ...DEFAULT_TEACHER,
+        id,
+        fullName: name || 'Instructor',
+        email: email || 'teacher@lumenpath.edu',
+        studentId,
+        department: department || 'General Education',
       });
     } else {
       setUser({
@@ -92,12 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = (name: string, email: string, role: 'student' | 'admin' = 'student') => {
+  const signUp = (name: string, email: string, role: 'student' | 'teacher' | 'admin' = 'student') => {
     const id = `user_${Date.now()}`;
-    const studentId = role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`;
+    const studentId = role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : role === 'teacher' ? `TCH-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`;
     setUser({
       id,
-      fullName: name || (role === 'admin' ? 'Administrator' : 'Student'),
+      fullName: name || (role === 'admin' ? 'Administrator' : role === 'teacher' ? 'Instructor' : 'Student'),
       email: email || `${id}@lumenpath.edu`,
       role,
       studentId,
@@ -109,12 +129,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const switchRole = (newRole: 'student' | 'admin') => {
+  const switchRole = (newRole: 'student' | 'teacher' | 'admin') => {
     if (!user) {
       signIn(newRole);
       return;
     }
-    const studentId = newRole === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`;
+    const studentId = newRole === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : newRole === 'teacher' ? `TCH-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`;
     setUser({
       ...user,
       role: newRole,

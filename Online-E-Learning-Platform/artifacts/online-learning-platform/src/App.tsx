@@ -403,8 +403,21 @@ const studentNav = [
   ['/student/profile', 'Profile', UserRound],
 ];
 
+const teacherNav = [
+  ['/teacher/dashboard', 'Overview', LayoutDashboard],
+  ['/teacher/subjects', 'My Subjects', BookOpen],
+  ['/teacher/lessons', 'Lessons', BookOpenCheck],
+  ['/teacher/library', 'Library', Paperclip],
+  ['/teacher/quizzes', 'Quizzes', ClipboardList],
+  ['/teacher/questions', 'Question Bank', FileQuestion],
+  ['/teacher/results', 'Student Results', Trophy],
+  ['/teacher/reports', 'Reports', BarChart3],
+  ['/teacher/profile', 'Profile', UserRound],
+];
+
 const adminNav = [
   ['/admin/dashboard', 'Overview', LayoutDashboard],
+  ['/admin/teacher-applications', 'Teacher Applications', ShieldCheck],
   ['/admin/students', 'Students', Users],
   ['/admin/subjects', 'Subjects', BookOpen],
   ['/admin/lessons', 'Lessons', BookOpenCheck],
@@ -415,20 +428,23 @@ const adminNav = [
   ['/admin/profile', 'Settings', Settings],
 ];
 
-function AppShell({ children, admin = false, preview = false }: { children: ReactNode; admin?: boolean; preview?: boolean }) {
+function AppShell({ children, role: shellRole, admin = false, preview = false }: { children: ReactNode; role?: 'student' | 'teacher' | 'admin'; admin?: boolean; preview?: boolean }) {
   const [open, setOpen] = useState(false);
   const [location, setLocation] = useLocation();
-  const { user, signOut, switchRole } = useAuth();
-  const me = user || (admin ? DEFAULT_ADMIN : DEFAULT_STUDENT);
-  const nav = (admin ? adminNav : studentNav) as [string, string, any][];
+  const { user, signOut, switchRole, role: currentRole } = useAuth();
+  const effectiveRole = shellRole || (admin ? 'admin' : currentRole);
+  const me = user || (effectiveRole === 'admin' ? DEFAULT_ADMIN : effectiveRole === 'teacher' ? DEFAULT_TEACHER : DEFAULT_STUDENT);
+  const nav = (effectiveRole === 'admin' ? adminNav : effectiveRole === 'teacher' ? teacherNav : studentNav) as [string, string, any][];
 
   const handleSignOut = () => {
     signOut();
-    setLocation(admin ? '/admin/login' : '/student/login');
+    if (effectiveRole === 'admin') setLocation('/admin/login');
+    else if (effectiveRole === 'teacher') setLocation('/teacher/login');
+    else setLocation('/student/login');
   };
 
   const isItemActive = (href: string) => {
-    if (href === '/student/dashboard' || href === '/admin/dashboard') {
+    if (href === '/student/dashboard' || href === '/admin/dashboard' || href === '/teacher/dashboard') {
       return location === href;
     }
     return location === href || location.startsWith(href + '/') || location.startsWith(href + '?');
@@ -450,11 +466,11 @@ function AppShell({ children, admin = false, preview = false }: { children: Reac
         </div>
 
         <div className="mt-6 shrink-0 px-7 text-[10px] font-bold uppercase tracking-[.18em] text-sidebar-foreground/50">
-          {admin ? 'Operations & Admin' : 'My Learning Space'}
+          {effectiveRole === 'admin' ? 'Operations & Admin' : effectiveRole === 'teacher' ? 'Faculty & Instruction' : 'My Learning Space'}
         </div>
 
         {/* Scrollable nav area */}
-        <nav className="mt-2 flex-1 overflow-y-auto px-5 pb-2 space-y-1" aria-label={admin ? 'Admin navigation' : 'Student navigation'}>
+        <nav className="mt-2 flex-1 overflow-y-auto px-5 pb-2 space-y-1" aria-label={effectiveRole === 'admin' ? 'Admin navigation' : effectiveRole === 'teacher' ? 'Teacher navigation' : 'Student navigation'}>
           {nav.map(([href, label, Icon]) => {
             const active = isItemActive(href);
             return (
@@ -481,21 +497,23 @@ function AppShell({ children, admin = false, preview = false }: { children: Reac
         <div className="shrink-0 border-t border-sidebar-border p-4">
           <div className="rounded-2xl border border-sidebar-border bg-sidebar-accent p-4 shadow-sm">
             <Link
-              href={admin ? '/admin/profile' : '/student/profile'}
+              href={effectiveRole === 'admin' ? '/admin/profile' : effectiveRole === 'teacher' ? '/teacher/profile' : '/student/profile'}
               onClick={() => setOpen(false)}
               className="group flex items-center gap-3 transition-opacity hover:opacity-95"
               data-testid="link-sidebar-profile-card"
             >
-              <Avatar name={me?.fullName ?? (admin ? 'Administrator' : 'Student')} src={me?.avatarUrl} />
+              <Avatar name={me?.fullName ?? (effectiveRole === 'admin' ? 'Administrator' : effectiveRole === 'teacher' ? 'Instructor' : 'Student')} src={me?.avatarUrl} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-sidebar-foreground group-hover:text-accent" data-testid="text-shell-name">
-                  {me?.fullName ?? (admin ? 'Admin User' : 'Student')}
+                  {me?.fullName ?? (effectiveRole === 'admin' ? 'Admin User' : effectiveRole === 'teacher' ? 'Instructor' : 'Student')}
                 </p>
-                <p className="text-xs text-sidebar-foreground/55">{admin ? 'Administrator' : me?.studentId ?? 'Student'}</p>
+                <p className="text-xs text-sidebar-foreground/55 truncate">
+                  {effectiveRole === 'admin' ? 'Administrator' : effectiveRole === 'teacher' ? (me?.department ? `Faculty • ${me.department}` : 'Instructor') : (me?.studentId ?? 'Student')}
+                </p>
               </div>
             </Link>
             <div className="mt-3 flex items-center justify-between border-t border-sidebar-border pt-3">
-              {admin ? (
+              {effectiveRole === 'admin' ? (
                 <button
                   onClick={() => {
                     switchRole('student');
@@ -506,6 +524,8 @@ function AppShell({ children, admin = false, preview = false }: { children: Reac
                 >
                   → Student View
                 </button>
+              ) : effectiveRole === 'teacher' ? (
+                <span className="text-[11px] font-bold text-sidebar-foreground/50">Faculty Portal</span>
               ) : (
                 <span className="text-[11px] font-bold text-sidebar-foreground/50">Learner Space</span>
               )}
@@ -597,6 +617,9 @@ function Landing() {
       <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8">
         <Brand />
         <div className="flex items-center gap-3">
+          <Link href="/teacher/login" className="hidden rounded-xl px-3.5 py-2 text-sm font-bold text-primary hover:bg-muted md:block" data-testid="link-teacher-portal">
+            Teacher Portal
+          </Link>
           <Link href="/student/login" className="hidden rounded-xl px-4 py-2 text-sm font-bold text-primary hover:bg-muted sm:block" data-testid="link-sign-in">
             Student Login
           </Link>
@@ -636,6 +659,13 @@ function Landing() {
             >
               Student Login
             </Link>
+            <Link
+              href="/teacher/register"
+              className="rounded-xl border border-accent/40 bg-accent/15 px-5 py-3 font-bold text-accent hover:bg-accent/25"
+              data-testid="link-hero-teacher-register"
+            >
+              Apply as Instructor
+            </Link>
           </div>
         </div>
       </section>
@@ -659,6 +689,14 @@ function Landing() {
         <div className="flex flex-wrap items-center gap-4">
           <Link href="/student/login" className="font-semibold text-primary hover:text-teal-700">
             Student Login
+          </Link>
+          <span>•</span>
+          <Link href="/teacher/login" className="font-semibold text-primary hover:text-teal-700">
+            Teacher Portal
+          </Link>
+          <span>•</span>
+          <Link href="/teacher/register" className="font-semibold text-primary hover:text-teal-700">
+            Register as Teacher
           </Link>
           <span>•</span>
           <Link href="/admin/login" className="font-semibold text-primary hover:text-teal-700">
@@ -5299,21 +5337,46 @@ function ReportsPage() {
   );
 }
 
-function Protected({ children, admin = false }: { children: ReactNode; admin?: boolean }) {
+function Protected({
+  children,
+  role: requiredRole,
+  admin = false,
+}: {
+  children: ReactNode;
+  role?: 'student' | 'teacher' | 'admin';
+  admin?: boolean;
+}) {
   const { isLoaded, isSignedIn, role } = useAuth();
+  const effectiveRole = admin ? 'admin' : (requiredRole || 'student');
+
   if (!isLoaded) return <Loading label="Opening LumenPath" />;
-  if (!isSignedIn) return <Redirect to={admin ? "/admin/login" : "/student/login"} />;
-  if (admin && role !== 'admin') {
+  if (!isSignedIn) {
+    if (effectiveRole === 'admin') return <Redirect to="/admin/login" />;
+    if (effectiveRole === 'teacher') return <Redirect to="/teacher/login" />;
+    return <Redirect to="/student/login" />;
+  }
+
+  // Enforce role-based access control
+  if (effectiveRole === 'admin' && role !== 'admin') {
     return <Redirect to="/admin/login" />;
   }
-  return <AppShell admin={admin}>{children}</AppShell>;
+  if (effectiveRole === 'teacher' && role !== 'teacher' && role !== 'admin') {
+    return <Redirect to="/teacher/login" />;
+  }
+  if (effectiveRole === 'student' && role !== 'student' && role !== 'admin' && role !== 'teacher') {
+    return <Redirect to="/student/login" />;
+  }
+
+  return <AppShell role={effectiveRole} admin={effectiveRole === 'admin'}>{children}</AppShell>;
 }
 
 function HomeRedirect() {
   const { isLoaded, isSignedIn, role } = useAuth();
   if (!isLoaded) return <Loading />;
   if (!isSignedIn) return <Landing />;
-  return <Redirect to={role === 'admin' ? '/admin/dashboard' : '/student/dashboard'} />;
+  if (role === 'admin') return <Redirect to="/admin/dashboard" />;
+  if (role === 'teacher') return <Redirect to="/teacher/dashboard" />;
+  return <Redirect to="/student/dashboard" />;
 }
 
 function AdminLoginPage() {
@@ -5531,6 +5594,1260 @@ function AdminLoginPage() {
       </div>
     </div>
   );
+}
+
+// ==========================================
+// TEACHER REGISTRATION, APPROVAL & DASHBOARD
+// ==========================================
+
+function TeacherRegisterPage() {
+  const { isSignedIn, role } = useAuth();
+  const store = usePlatformStore();
+  const [, setLocation] = useLocation();
+
+  const [fullName, setFullName] = useState('');
+  const [teacherId, setTeacherId] = useState('');
+  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+  const [department, setDepartment] = useState('Computer Science & IT');
+  const [credentialFile, setCredentialFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  if (isSignedIn && role === 'teacher') {
+    return <Redirect to="/teacher/dashboard" />;
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    const trimmedName = fullName.trim();
+    const trimmedTeacherId = teacherId.trim();
+    const trimmedEmail = email.trim();
+    const trimmedUsername = username.trim().toLowerCase();
+    const trimmedContact = contactNumber.trim();
+    const trimmedDept = department.trim();
+
+    if (!trimmedName) {
+      setError('Please enter your complete name.');
+      return;
+    }
+    if (!trimmedTeacherId) {
+      setError('Please enter your Teacher ID or Employee ID.');
+      return;
+    }
+    if (!trimmedEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (!trimmedUsername) {
+      setError('Please choose a username.');
+      return;
+    }
+    if (trimmedUsername.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter a password.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please verify both password fields.');
+      return;
+    }
+    if (!trimmedContact) {
+      setError('Please enter your contact phone number.');
+      return;
+    }
+    if (!trimmedDept) {
+      setError('Please select or specify your department/specialization.');
+      return;
+    }
+
+    // Duplicate check
+    const emailExists = store.teacherApplications.some(
+      (a) => a.email.toLowerCase() === trimmedEmail.toLowerCase()
+    );
+    if (emailExists) {
+      setError('An application with this email address already exists. Please check your application status.');
+      return;
+    }
+
+    const teacherIdExists = store.teacherApplications.some(
+      (a) => a.teacherId.toLowerCase() === trimmedTeacherId.toLowerCase()
+    );
+    if (teacherIdExists) {
+      setError('A teacher with this Teacher ID is already registered or has a pending application.');
+      return;
+    }
+
+    const usernameExists = store.teacherApplications.some(
+      (a) => a.username.toLowerCase() === trimmedUsername
+    );
+    if (usernameExists) {
+      setError('This username is already taken. Please choose another username.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    const newApp = store.addTeacherApplication({
+      fullName: trimmedName,
+      teacherId: trimmedTeacherId,
+      email: trimmedEmail,
+      username: trimmedUsername,
+      contactNumber: trimmedContact,
+      department: trimmedDept,
+      credentialFile: credentialFile || null,
+      password,
+    });
+
+    setIsLoading(false);
+
+    toast({
+      title: 'Teacher Application Submitted',
+      description: 'Your application is waiting for administrator approval.',
+    });
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Teacher Application Submitted!',
+      html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
+        Thank you, <b>${trimmedName}</b>!<br/>
+        Your application for the <b>${trimmedDept}</b> department has been submitted with ID <b>${newApp.teacherId}</b>.<br/>
+        <span style="display:inline-block; margin-top:12px; padding:6px 14px; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; color:#92400e; font-weight:700;">
+          ⏳ Status: Pending Administrator Approval
+        </span>
+        <p style="margin-top:12px; font-size:12px; color:#64748b;">
+          Please wait for an administrator to review and approve your application. You can check your status at any time.
+        </p>
+      </div>`,
+      confirmButtonText: 'Check Application Status',
+      confirmButtonColor: '#0f766e',
+      allowOutsideClick: false,
+    }).then(() => {
+      setLocation(`/teacher/status?email=${encodeURIComponent(trimmedEmail)}`);
+    });
+  };
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-2xl rounded-3xl border border-card-border bg-card p-8 sm:p-10 shadow-xl animate-rise">
+        <div className="text-center">
+          <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
+            <GraduationCap className="size-7" />
+          </div>
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Faculty & Instruction
+          </p>
+          <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-primary">
+            Register as Teacher / Instructor
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+            Apply to become an approved LumenPath instructor. All teacher accounts are verified and approved by administrators.
+          </p>
+        </div>
+
+        {error && (
+          <div className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-center gap-2.5">
+            <ShieldAlert className="size-4 shrink-0" />
+            <span className="font-medium">{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Full Name <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => {
+                  setFullName(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. Dr. Eleanor Davies"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-fullname"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Teacher ID or Employee ID <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={teacherId}
+                onChange={(e) => {
+                  setTeacherId(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. TCH-2024-101"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-id"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Email Address <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError('');
+                }}
+                placeholder="eleanor.davies@university.edu"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-email"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Username <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setError('');
+                }}
+                placeholder="e.g. prof.davies"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-username"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Password <span className="text-destructive">*</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="•••••••• (min 6 chars)"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                  data-testid="input-teacher-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Confirm Password <span className="text-destructive">*</span>
+              </label>
+              <div className="relative mt-1">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="•••••••• (re-enter password)"
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                  data-testid="input-teacher-confirm-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Contact Number <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="tel"
+                required
+                value={contactNumber}
+                onChange={(e) => setContactNumber(e.target.value)}
+                placeholder="e.g. +63 912 345 6789"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-contact"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-primary">
+                Department / Specialization <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700 font-medium"
+                data-testid="select-teacher-department"
+              >
+                <option value="Computer Science & IT">Computer Science & IT</option>
+                <option value="Mathematics & Data">Mathematics & Data</option>
+                <option value="Natural Sciences & Physics">Natural Sciences & Physics</option>
+                <option value="Engineering & Robotics">Engineering & Robotics</option>
+                <option value="Business & Finance">Business & Finance</option>
+                <option value="Language & Humanities">Language & Humanities</option>
+                <option value="Health & Medical Sciences">Health & Medical Sciences</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <FileUploadDropZone
+              label="Upload Proof of Employment or Teaching Credentials (Optional)"
+              hint="Upload teaching certificate, diploma, or institutional appointment (PDF, DOCX, PNG, JPG - Max 25MB)"
+              file={credentialFile}
+              onFileChange={setCredentialFile}
+              id="teacher-credential-upload"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="mt-3 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+            data-testid="button-teacher-submit"
+          >
+            {isLoading ? 'Submitting Application...' : 'Submit Teacher Application'}
+          </button>
+        </form>
+
+        <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+          <Link href="/teacher/status" className="font-bold text-teal-700 hover:underline">
+            Check Application Status
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/teacher/login" className="hover:underline font-medium text-foreground">
+              Back to Teacher Login
+            </Link>
+            <span>•</span>
+            <Link href="/" className="hover:underline">
+              ← Back to Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherLoginPage() {
+  const { signIn, isSignedIn, role } = useAuth();
+  const store = usePlatformStore();
+  const [, setLocation] = useLocation();
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [pendingAppEmail, setPendingAppEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  if (isSignedIn && role === 'teacher') {
+    return <Redirect to="/teacher/dashboard" />;
+  }
+
+  const handleTeacherSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setPendingAppEmail('');
+
+    const trimmedInput = identifier.trim();
+    if (!trimmedInput) {
+      setLoginError('Please enter your email, Teacher ID, or username.');
+      return;
+    }
+
+    if (!password || password.trim().length < 4) {
+      setLoginError('Invalid credentials. Password must be at least 4 characters.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    setTimeout(() => {
+      const searchVal = trimmedInput.toLowerCase();
+      const matchedApp = store.teacherApplications.find(
+        (a) =>
+          a.email.toLowerCase() === searchVal ||
+          a.teacherId.toLowerCase() === searchVal ||
+          a.username.toLowerCase() === searchVal
+      );
+
+      // Support seed or default demo teacher if matched
+      if (!matchedApp) {
+        if (searchVal === 'teacher@lumenpath.edu' || searchVal === 'teacher' || searchVal === 'instructor') {
+          signIn('teacher', 'Prof. Sarah Jenkins', 'teacher@lumenpath.edu', 'TCH-2024-002', 'Mathematics & Algorithms');
+          setIsLoading(false);
+          toast({
+            title: 'Signed in as Instructor',
+            description: 'Welcome back, Prof. Sarah Jenkins!',
+          });
+          setLocation('/teacher/dashboard');
+          return;
+        }
+
+        setIsLoading(false);
+        setLoginError('No instructor account or application found with this email, Teacher ID, or username.');
+        return;
+      }
+
+      // Password verification
+      if (matchedApp.password && matchedApp.password !== password) {
+        setIsLoading(false);
+        setLoginError('Incorrect password. Please verify your credentials and try again.');
+        return;
+      }
+
+      // Status check
+      if (matchedApp.applicationStatus === 'pending') {
+        setIsLoading(false);
+        setPendingAppEmail(matchedApp.email);
+        setLoginError('Your teacher application is currently waiting for administrator approval. You cannot access the Teacher Dashboard until an administrator approves your application.');
+        return;
+      }
+
+      if (matchedApp.applicationStatus === 'rejected') {
+        setIsLoading(false);
+        setPendingAppEmail(matchedApp.email);
+        setLoginError(
+          matchedApp.rejectionReason
+            ? `Your teacher application was rejected: "${matchedApp.rejectionReason}".`
+            : 'Your teacher application was not approved by the administrator.'
+        );
+        return;
+      }
+
+      // Approved!
+      signIn('teacher', matchedApp.fullName, matchedApp.email, matchedApp.teacherId, matchedApp.department);
+      setIsLoading(false);
+
+      toast({
+        title: 'Signed In as Instructor',
+        description: `Welcome back, Prof. ${matchedApp.fullName}!`,
+      });
+      setLocation('/teacher/dashboard');
+    }, 250);
+  };
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl animate-rise">
+        <div className="text-center">
+          <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
+            <GraduationCap className="size-7" />
+          </div>
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Faculty Portal
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold text-primary">
+            Teacher Login
+          </h1>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Sign in with your approved instructor credentials to manage courses, lessons, and student assessments.
+          </p>
+        </div>
+
+        {loginError && (
+          <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive space-y-2">
+            <div className="flex items-start gap-2">
+              <ShieldAlert className="size-4 shrink-0 mt-0.5" />
+              <span>{loginError}</span>
+            </div>
+            {pendingAppEmail && (
+              <div className="pt-1">
+                <Link
+                  href={`/teacher/status?email=${encodeURIComponent(pendingAppEmail)}`}
+                  className="font-bold underline hover:opacity-80 block"
+                >
+                  View Application Status Details →
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handleTeacherSignIn} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-primary">Email, Teacher ID, or Username</label>
+            <input
+              type="text"
+              required
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                setLoginError('');
+              }}
+              placeholder="e.g. sarah.jenkins@lumenpath.edu or TCH-2024-002"
+              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+              data-testid="input-teacher-login-id"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-primary">Password</label>
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setLoginError('');
+                }}
+                placeholder="••••••••"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                data-testid="input-teacher-login-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+            data-testid="button-teacher-signin-submit"
+          >
+            {isLoading ? 'Verifying credentials...' : 'Sign in as Teacher'}
+          </button>
+        </form>
+
+        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between">
+            <Link href="/teacher/register" className="font-bold text-teal-700 hover:underline">
+              Register as Teacher
+            </Link>
+            <Link href="/teacher/status" className="font-bold text-muted-foreground hover:text-foreground hover:underline">
+              Check Status
+            </Link>
+          </div>
+          <div className="flex items-center justify-between border-t border-border/60 pt-2.5">
+            <Link href="/student/login" className="hover:underline">
+              ← Student Portal
+            </Link>
+            <Link href="/" className="hover:underline">
+              Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherStatusPage() {
+  const store = usePlatformStore();
+  const [, setLocation] = useLocation();
+  const { signIn } = useAuth();
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const urlEmail = searchParams.get('email') || searchParams.get('id') || '';
+
+  const [query, setQuery] = useState(urlEmail);
+  const [searchedApp, setSearchedApp] = useState<TeacherApplicationRecord | null>(() => {
+    if (urlEmail) {
+      return store.getTeacherApplication(urlEmail) || null;
+    }
+    return null;
+  });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    const found = store.getTeacherApplication(query.trim());
+    setSearchedApp(found || null);
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      if (searchedApp) {
+        const updated = store.getTeacherApplication(searchedApp.applicationId) || store.getTeacherApplication(searchedApp.email);
+        setSearchedApp(updated || null);
+      }
+      setIsRefreshing(false);
+    }, 400);
+  };
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-xl rounded-3xl border border-card-border bg-card p-8 sm:p-10 shadow-xl animate-rise">
+        <div className="text-center">
+          <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
+            <Clock3 className="size-7" />
+          </div>
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Faculty Application Status
+          </p>
+          <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-primary">
+            Teacher Application Tracker
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Check the real-time review status of your teacher application.
+          </p>
+        </div>
+
+        <form onSubmit={handleSearch} className="mt-6 flex gap-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Enter Email, Teacher ID, or Username..."
+            className="flex-1 rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
+          />
+          <button
+            type="submit"
+            className="rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-accent shadow-sm hover:opacity-90 transition-opacity"
+          >
+            Check Status
+          </button>
+        </form>
+
+        {searchedApp ? (
+          <div className="mt-6 space-y-5 rounded-2xl border border-border bg-background/50 p-5 animate-rise">
+            <div className="flex items-start justify-between border-b border-border/70 pb-4">
+              <div>
+                <span className="font-mono-ui text-[11px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                  {searchedApp.applicationId}
+                </span>
+                <h3 className="mt-2 text-lg font-bold text-primary">{searchedApp.fullName}</h3>
+                <p className="text-xs text-muted-foreground">{searchedApp.email} • ID: {searchedApp.teacherId}</p>
+                <p className="text-xs font-medium text-foreground mt-0.5">Department: {searchedApp.department}</p>
+              </div>
+
+              <button
+                onClick={handleRefresh}
+                className="flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                title="Refresh application status"
+              >
+                <RefreshCw className={`size-3.5 ${isRefreshing ? 'animate-spin text-teal-700' : ''}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+
+            {searchedApp.credentialFile && (
+              <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2.5 text-xs">
+                <Paperclip className="size-4 text-teal-700 shrink-0" />
+                <span className="font-medium text-foreground truncate">{searchedApp.credentialFile.name}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">({searchedApp.credentialFile.size})</span>
+              </div>
+            )}
+
+            {/* Status Presentation */}
+            {searchedApp.applicationStatus === 'pending' && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <Clock3 className="size-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Pending Administrator Approval</span>
+                </div>
+                <p className="mt-2 text-xs leading-5">
+                  Your teacher application is waiting for administrator approval. Once verified, you will be granted access to the Teacher Portal and dashboard.
+                </p>
+                <div className="mt-3 text-[11px] font-mono-ui text-amber-800/80 dark:text-amber-300/80">
+                  Submitted: {searchedApp.submittedAt}
+                </div>
+                <div className="mt-4 pt-3 border-t border-amber-500/20 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                  🔒 Teacher Dashboard access is locked until approved.
+                </div>
+              </div>
+            )}
+
+            {searchedApp.applicationStatus === 'approved' && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-emerald-900 dark:text-emerald-200">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <CheckCircle2 className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Application Approved!</span>
+                </div>
+                <p className="mt-2 text-xs leading-5">
+                  Congratulations! Your teacher account has been approved. You can now access the Teacher Portal and create curriculum content.
+                </p>
+                <div className="mt-3 text-[11px] font-mono-ui text-emerald-800/80 dark:text-emerald-300/80">
+                  Approved by {searchedApp.reviewedBy || 'Administrator'} • {searchedApp.reviewedAt || 'Recently'}
+                </div>
+                <div className="mt-4 pt-3 border-t border-emerald-500/20">
+                  <button
+                    onClick={() => {
+                      signIn('teacher', searchedApp.fullName, searchedApp.email, searchedApp.teacherId, searchedApp.department);
+                      setLocation('/teacher/dashboard');
+                    }}
+                    className="w-full rounded-xl bg-teal-700 hover:bg-teal-800 text-white py-2.5 text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>Go to Teacher Dashboard</span>
+                    <ArrowRight className="size-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {searchedApp.applicationStatus === 'rejected' && (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-destructive">
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  <AlertTriangle className="size-5 shrink-0" />
+                  <span>Teacher Application Rejected</span>
+                </div>
+                <p className="mt-2 text-xs leading-5">
+                  Your teacher application has been rejected by the administrator.
+                </p>
+                {searchedApp.rejectionReason && (
+                  <div className="mt-3 rounded-xl bg-background/80 border border-destructive/20 p-3 text-xs">
+                    <p className="font-bold text-primary text-[11px] uppercase tracking-wider">Rejection Reason:</p>
+                    <p className="mt-1 text-foreground font-medium">{searchedApp.rejectionReason}</p>
+                  </div>
+                )}
+                <div className="mt-3 text-[11px] font-mono-ui text-muted-foreground">
+                  Reviewed by {searchedApp.reviewedBy || 'Administrator'} • {searchedApp.reviewedAt || 'Recently'}
+                </div>
+                <div className="mt-4 pt-3 border-t border-destructive/20">
+                  <Link
+                    href="/teacher/register"
+                    className="block text-center rounded-xl border border-border bg-card hover:bg-muted py-2 text-xs font-bold text-foreground transition-all"
+                  >
+                    Submit a Revised Application
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : query ? (
+          <div className="mt-6 rounded-2xl border border-border bg-card p-6 text-center text-xs text-muted-foreground">
+            <p className="font-bold text-foreground">No application found matching "{query}"</p>
+            <p className="mt-1">Please verify your email, Teacher ID, or username and try again.</p>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            Enter your email or application ID above to check your current approval status.
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+          <Link href="/teacher/login" className="font-bold text-teal-700 hover:underline">
+            ← Teacher Login
+          </Link>
+          <Link href="/" className="hover:underline">
+            Home
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminTeacherApplicationsPage() {
+  const store = usePlatformStore();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+
+  const pendingCount = store.teacherApplications.filter((a) => a.applicationStatus === 'pending').length;
+  const approvedCount = store.teacherApplications.filter((a) => a.applicationStatus === 'approved').length;
+  const rejectedCount = store.teacherApplications.filter((a) => a.applicationStatus === 'rejected').length;
+
+  const filteredApps = store.teacherApplications.filter((a) => {
+    const matchStatus = statusFilter === 'all' ? true : a.applicationStatus === statusFilter;
+    const matchSearch = `${a.fullName} ${a.teacherId} ${a.email} ${a.department} ${a.username}`.toLowerCase().includes(search.toLowerCase());
+    return matchStatus && matchSearch;
+  });
+
+  const handleApprove = (app: TeacherApplicationRecord) => {
+    Swal.fire({
+      title: 'Approve Teacher Application?',
+      html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
+        Approve <b>${app.fullName}</b> (${app.teacherId}) for the <b>${app.department}</b> department.<br/>
+        <span style="display:inline-block; margin-top:10px; padding:4px 12px; background:#f0fdfa; border:1px solid #ccfbf1; border-radius:8px; color:#0f766e; font-weight:700;">
+          This activates their account and grants Teacher Dashboard access.
+        </span>
+      </div>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Approve Teacher',
+      confirmButtonColor: '#0f766e',
+      cancelButtonText: 'Cancel',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        store.approveTeacherApplication(app.applicationId, user?.fullName || 'Administrator');
+        toast({
+          title: 'Teacher Approved!',
+          description: `${app.fullName} has been granted teacher access.`,
+        });
+      }
+    });
+  };
+
+  const handleReject = (app: TeacherApplicationRecord) => {
+    Swal.fire({
+      title: 'Reject Teacher Application',
+      html: `<div style="text-align:center; font-size:14px; color:#475569; margin-top:8px;">
+        Please enter an optional reason for rejecting <b>${app.fullName}</b>'s application:
+      </div>`,
+      input: 'textarea',
+      inputPlaceholder: 'e.g. Missing required teaching credentials, department quota reached, or invalid credentials...',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Reject Application',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancel',
+    }).then((res) => {
+      if (res.isConfirmed) {
+        store.rejectTeacherApplication(app.applicationId, res.value, user?.fullName || 'Administrator');
+        toast({
+          title: 'Application Rejected',
+          description: `Teacher application for ${app.fullName} was marked as rejected.`,
+          variant: 'destructive',
+        });
+      }
+    });
+  };
+
+  return (
+    <>
+      <PageIntro
+        eyebrow="Faculty & Staff"
+        title="Teacher Applications & Approvals"
+        body="Review, verify, and approve or reject instructor applications for the LumenPath faculty. Approved teachers gain access to course creation and management tools."
+      />
+
+      {/* Overview Metric Cards */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 animate-rise">
+        <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Applications</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-extrabold text-primary">{store.teacherApplications.length}</span>
+            <span className="text-[11px] text-muted-foreground">All time</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 shadow-xs">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Pending Review</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-extrabold text-amber-600 dark:text-amber-400">{pendingCount}</span>
+            <span className="text-[11px] text-amber-800 dark:text-amber-300">Action required</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-xs">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Approved Faculty</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">{approvedCount}</span>
+            <span className="text-[11px] text-emerald-800 dark:text-emerald-300">Active teachers</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-4 shadow-xs">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rejected</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-extrabold text-destructive">{rejectedCount}</span>
+            <span className="text-[11px] text-muted-foreground">Declined</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="flex max-w-md flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <Search className="size-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search applications by name, ID, email, or department..."
+            className="w-full bg-transparent text-sm outline-none"
+          />
+        </div>
+
+        <div className="flex rounded-xl border border-border bg-card p-1">
+          {(
+            [
+              { id: 'all', label: `All (${store.teacherApplications.length})` },
+              { id: 'pending', label: `Pending (${pendingCount})` },
+              { id: 'approved', label: `Approved (${approvedCount})` },
+              { id: 'rejected', label: `Rejected (${rejectedCount})` },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`rounded-lg px-3 py-1 text-xs font-bold transition-colors ${
+                statusFilter === tab.id
+                  ? 'bg-primary text-accent shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Applications Table */}
+      {filteredApps.length === 0 ? (
+        <EmptyState
+          title="No teacher applications found"
+          body={statusFilter !== 'all' ? `No applications matching status "${statusFilter}".` : 'No teacher applications have been submitted yet.'}
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-card-border bg-card shadow-xs">
+          <div className="min-w-[940px]">
+            <div className="grid grid-cols-[2fr_1.1fr_1.4fr_1.3fr_1.2fr_1.3fr] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span>Teacher / Applicant</span>
+              <span>Teacher ID</span>
+              <span>Department</span>
+              <span>Submitted / Credentials</span>
+              <span>Status</span>
+              <span className="text-right">Actions</span>
+            </div>
+
+            {filteredApps.map((x) => (
+              <div
+                key={x.applicationId}
+                className="grid grid-cols-[2fr_1.1fr_1.4fr_1.3fr_1.2fr_1.3fr] items-center gap-4 border-b border-border px-5 py-4 last:border-0 hover:bg-muted/15 transition-colors"
+              >
+                <div className="min-w-0 flex items-center gap-3">
+                  <Avatar name={x.fullName} className="size-9 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-primary">{x.fullName}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground">
+                      <span className="truncate">{x.email}</span>
+                      <span className="font-mono-ui text-[10px] font-semibold text-teal-700 bg-teal-50 dark:bg-teal-950/40 px-1 rounded border border-teal-200 dark:border-teal-800/40">
+                        @{x.username}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="font-mono-ui text-xs font-bold px-2 py-0.5 rounded-md bg-muted text-foreground border border-border">
+                    {x.teacherId}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="inline-flex items-center rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/50 px-2.5 py-1 text-xs font-semibold text-teal-800 dark:text-teal-300">
+                    {x.department}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-xs text-foreground font-medium">{x.submittedAt}</p>
+                  {x.credentialFile ? (
+                    <a
+                      href={x.credentialFile.url}
+                      download={x.credentialFile.name}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 hover:underline"
+                    >
+                      <Paperclip className="size-3" />
+                      <span className="truncate max-w-[120px]">{x.credentialFile.name}</span>
+                    </a>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground">No file attached</span>
+                  )}
+                </div>
+
+                <div>
+                  {x.applicationStatus === 'pending' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+                      <Clock3 className="size-3" /> Pending Review
+                    </span>
+                  )}
+                  {x.applicationStatus === 'approved' && (
+                    <div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3" /> Approved Faculty
+                      </span>
+                      {x.reviewedBy && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">By {x.reviewedBy}</p>
+                      )}
+                    </div>
+                  )}
+                  {x.applicationStatus === 'rejected' && (
+                    <div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 border border-destructive/30 px-2.5 py-0.5 text-xs font-bold text-destructive">
+                        <AlertTriangle className="size-3" /> Rejected
+                      </span>
+                      {x.rejectionReason && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[140px]" title={x.rejectionReason}>
+                          {x.rejectionReason}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  {x.applicationStatus === 'pending' ? (
+                    <>
+                      <button
+                        onClick={() => handleApprove(x)}
+                        className="flex items-center gap-1 rounded-xl bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 text-xs font-bold shadow-sm transition-transform hover:-translate-y-0.5"
+                        title="Approve teacher application"
+                      >
+                        <Check className="size-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(x)}
+                        className="flex items-center gap-1 rounded-xl border border-destructive/40 bg-destructive/10 hover:bg-destructive/20 text-destructive px-3 py-1.5 text-xs font-bold transition-colors"
+                        title="Reject teacher application"
+                      >
+                        <X className="size-3.5" /> Reject
+                      </button>
+                    </>
+                  ) : x.applicationStatus === 'approved' ? (
+                    <button
+                      onClick={() => handleReject(x)}
+                      className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      title="Revoke approval"
+                    >
+                      Revoke
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleApprove(x)}
+                      className="rounded-lg border border-teal-700/40 bg-teal-50 dark:bg-teal-950 px-2.5 py-1 text-[11px] font-bold text-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900"
+                      title="Reconsider and approve"
+                    >
+                      Approve on Appeal
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function TeacherDashboard() {
+  const store = usePlatformStore();
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  return (
+    <>
+      <div className="surface-grid relative mb-8 overflow-hidden rounded-3xl bg-primary p-6 text-primary-foreground sm:p-8">
+        <div className="relative z-10 max-w-2xl">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-accent/20 border border-accent/40 px-3 py-1 text-[11px] font-bold text-accent">
+            <GraduationCap className="size-3.5" />
+            <span>Faculty Workspace • {user?.department || 'Curriculum Division'}</span>
+          </div>
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white">
+            Welcome back, Prof. {user?.fullName || 'Instructor'}!
+          </h1>
+          <p className="mt-2 text-xs leading-5 text-primary-foreground/75">
+            Manage your course curriculum, publish engaging lesson guides, create assessments with custom passing limits, and track student outcomes.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2.5">
+            <Link
+              href="/teacher/lessons"
+              className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-primary shadow-[2px_2px_0_hsl(var(--primary))] hover:-translate-y-0.5 transition-transform"
+            >
+              <Plus className="inline size-3.5 mr-1" /> Publish New Lesson
+            </Link>
+            <Link
+              href="/teacher/quizzes"
+              className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
+            >
+              <ClipboardList className="inline size-3.5 mr-1" /> Create Assessment Quiz
+            </Link>
+            <Link
+              href="/teacher/results"
+              className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
+            >
+              <Trophy className="inline size-3.5 mr-1" /> View Student Scores
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4 animate-rise">
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">My Subjects</span>
+            <BookOpen className="size-5 text-teal-700" />
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{store.subjects.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Active in curriculum</p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Lessons Published</span>
+            <BookOpenCheck className="size-5 text-teal-700" />
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-teal-700">{store.lessons.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Interactive modules</p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active Quizzes</span>
+            <ClipboardList className="size-5 text-teal-700" />
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{store.quizzes.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Timed checks & tests</p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Submissions Graded</span>
+            <Trophy className="size-5 text-emerald-600" />
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-emerald-600">{store.results.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Learner quiz attempts</p>
+        </div>
+      </div>
+
+      {/* Curriculum Overview */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-3xl border border-card-border bg-card p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display text-lg font-bold text-primary">Curriculum Modules</h2>
+              <p className="text-xs text-muted-foreground">Lessons under your supervision</p>
+            </div>
+            <Link href="/teacher/lessons" className="text-xs font-bold text-teal-700 hover:underline">
+              View all ({store.lessons.length}) →
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {store.lessons.slice(0, 4).map((l) => (
+              <div key={l.id} className="flex items-center justify-between rounded-xl border border-border bg-background p-3.5">
+                <div>
+                  <p className="text-sm font-bold text-foreground">{l.title}</p>
+                  <p className="text-xs text-muted-foreground">{l.subjectName} • {l.materialName || 'Guide available'}</p>
+                </div>
+                <span className="font-mono-ui text-[11px] font-bold text-teal-700 bg-teal-50 dark:bg-teal-950 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-800">
+                  Published
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-card-border bg-card p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-display text-lg font-bold text-primary">Recent Student Results</h2>
+              <p className="text-xs text-muted-foreground">Latest assessment submissions</p>
+            </div>
+            <Link href="/teacher/results" className="text-xs font-bold text-teal-700 hover:underline">
+              Full gradebook ({store.results.length}) →
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {store.results.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">No student assessments submitted yet.</p>
+            ) : (
+              store.results.slice(0, 4).map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-xl border border-border bg-background p-3.5">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">{r.studentName}</p>
+                    <p className="text-xs text-muted-foreground">{r.quizName} • {r.dateTaken}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`font-mono-ui text-sm font-bold ${r.passed ? 'text-emerald-600' : 'text-destructive'}`}>
+                      {r.percentage}%
+                    </span>
+                    <p className="text-[10px] text-muted-foreground font-medium">{r.passed ? 'Passed' : 'Needs Review'}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TeacherSubjectsPage() {
+  return <AdminTablePage kind="subjects" />;
+}
+
+function TeacherLessonsPage() {
+  return <AdminTablePage kind="lessons" />;
+}
+
+function TeacherLibraryPage() {
+  return <LessonsPage />;
+}
+
+function TeacherQuizzesPage() {
+  return <AdminTablePage kind="quizzes" />;
+}
+
+function TeacherQuestionsPage() {
+  return <AdminTablePage kind="questions" />;
+}
+
+function TeacherResultsPage() {
+  return <AdminResultsPage />;
 }
 
 function SignInPage() {
@@ -6085,11 +7402,49 @@ function Router() {
         <Route path="/register"><SignUpPage /></Route>
         <Route path="/register/*?"><SignUpPage /></Route>
 
+        {/* Teacher Auth Routes */}
+        <Route path="/teacher/login"><TeacherLoginPage /></Route>
+        <Route path="/teacher/login/*?"><TeacherLoginPage /></Route>
+        <Route path="/teacher/register"><TeacherRegisterPage /></Route>
+        <Route path="/teacher/register/*?"><TeacherRegisterPage /></Route>
+        <Route path="/teacher/status"><TeacherStatusPage /></Route>
+        <Route path="/teacher/status/*?"><TeacherStatusPage /></Route>
+        <Route path="/teacher/application-status"><TeacherStatusPage /></Route>
+        <Route path="/teacher/application-status/*?"><TeacherStatusPage /></Route>
+
         {/* Admin Login & Portal */}
         <Route path="/admin/login"><AdminLoginPage /></Route>
         <Route path="/admin/login/*?"><AdminLoginPage /></Route>
         <Route path="/admin"><AdminLoginPage /></Route>
         <Route path="/admin/"><AdminLoginPage /></Route>
+
+        {/* Admin Teacher Applications & Approvals */}
+        <Route path="/admin/teacher-applications"><Protected admin><AdminTeacherApplicationsPage /></Protected></Route>
+        <Route path="/admin/teacher-applications/*?"><Protected admin><AdminTeacherApplicationsPage /></Protected></Route>
+        <Route path="/admin/teacher-approvals"><Protected admin><AdminTeacherApplicationsPage /></Protected></Route>
+        <Route path="/admin/teacher-approvals/*?"><Protected admin><AdminTeacherApplicationsPage /></Protected></Route>
+
+        {/* Teacher Portal Routes */}
+        <Route path="/teacher"><Redirect to="/teacher/dashboard" /></Route>
+        <Route path="/teacher/"><Redirect to="/teacher/dashboard" /></Route>
+        <Route path="/teacher/dashboard"><Protected role="teacher"><TeacherDashboard /></Protected></Route>
+        <Route path="/teacher/dashboard/*?"><Protected role="teacher"><TeacherDashboard /></Protected></Route>
+        <Route path="/teacher/subjects"><Protected role="teacher"><TeacherSubjectsPage /></Protected></Route>
+        <Route path="/teacher/subjects/*?"><Protected role="teacher"><TeacherSubjectsPage /></Protected></Route>
+        <Route path="/teacher/lessons"><Protected role="teacher"><TeacherLessonsPage /></Protected></Route>
+        <Route path="/teacher/lessons/*?"><Protected role="teacher"><TeacherLessonsPage /></Protected></Route>
+        <Route path="/teacher/library"><Protected role="teacher"><TeacherLibraryPage /></Protected></Route>
+        <Route path="/teacher/library/*?"><Protected role="teacher"><TeacherLibraryPage /></Protected></Route>
+        <Route path="/teacher/quizzes"><Protected role="teacher"><TeacherQuizzesPage /></Protected></Route>
+        <Route path="/teacher/quizzes/*?"><Protected role="teacher"><TeacherQuizzesPage /></Protected></Route>
+        <Route path="/teacher/questions"><Protected role="teacher"><TeacherQuestionsPage /></Protected></Route>
+        <Route path="/teacher/questions/*?"><Protected role="teacher"><TeacherQuestionsPage /></Protected></Route>
+        <Route path="/teacher/results"><Protected role="teacher"><TeacherResultsPage /></Protected></Route>
+        <Route path="/teacher/results/*?"><Protected role="teacher"><TeacherResultsPage /></Protected></Route>
+        <Route path="/teacher/reports"><Protected role="teacher"><ReportsPage /></Protected></Route>
+        <Route path="/teacher/reports/*?"><Protected role="teacher"><ReportsPage /></Protected></Route>
+        <Route path="/teacher/profile"><Protected role="teacher"><ProfilePage /></Protected></Route>
+        <Route path="/teacher/profile/*?"><Protected role="teacher"><ProfilePage /></Protected></Route>
 
         {/* Student Routes */}
         <Route path="/student"><Redirect to="/student/dashboard" /></Route>

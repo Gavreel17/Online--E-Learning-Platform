@@ -129,6 +129,24 @@ export interface LoginActivityRecord {
   status: 'success';
 }
 
+export interface TeacherApplicationRecord {
+  applicationId: string;
+  userId: string;
+  fullName: string;
+  teacherId: string;
+  email: string;
+  username: string;
+  contactNumber: string;
+  department: string;
+  credentialFile?: { name: string; url: string; size?: string; type?: string } | null;
+  password?: string;
+  applicationStatus: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+}
+
 export interface ActivityItem {
   id: number;
   title: string;
@@ -145,6 +163,22 @@ interface PlatformStoreContextType {
   students: StudentRecord[];
   loginActivities: LoginActivityRecord[];
   recentActivity: ActivityItem[];
+  teacherApplications: TeacherApplicationRecord[];
+
+  // Teacher Application Actions
+  addTeacherApplication: (data: {
+    fullName: string;
+    teacherId?: string;
+    email: string;
+    username: string;
+    contactNumber: string;
+    department: string;
+    credentialFile?: { name: string; url: string; size?: string; type?: string } | null;
+    password?: string;
+  }) => TeacherApplicationRecord;
+  approveTeacherApplication: (applicationId: string, adminName?: string) => void;
+  rejectTeacherApplication: (applicationId: string, reason?: string, adminName?: string) => void;
+  getTeacherApplication: (identifier: string) => TeacherApplicationRecord | undefined;
 
   // Student Actions
   completeLesson: (id: number) => void;
@@ -387,6 +421,59 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>(() =>
     getInitial('activity', [])
   );
+  const [teacherApplications, setTeacherApplications] = useState<TeacherApplicationRecord[]>(() =>
+    getInitial<TeacherApplicationRecord[]>('teacher_applications', [
+      {
+        applicationId: 'APP-1001',
+        userId: 'tch_seed_1',
+        fullName: 'Dr. Robert Vance',
+        teacherId: 'TCH-2024-001',
+        email: 'robert.vance@lumenpath.edu',
+        username: 'robert.vance',
+        contactNumber: '+63 917 112 3344',
+        department: 'Computer Science & AI',
+        credentialFile: { name: 'Dr_Vance_PhD_Credentials.pdf', url: '#', size: '2.4 MB', type: 'application/pdf' },
+        password: 'password123',
+        applicationStatus: 'pending',
+        submittedAt: 'Oct 20, 2026, 09:30 AM',
+        reviewedAt: null,
+        reviewedBy: null,
+      },
+      {
+        applicationId: 'APP-1002',
+        userId: 'tch_seed_2',
+        fullName: 'Prof. Sarah Jenkins',
+        teacherId: 'TCH-2024-002',
+        email: 'sarah.jenkins@lumenpath.edu',
+        username: 'sarah.jenkins',
+        contactNumber: '+63 920 554 8899',
+        department: 'Mathematics & Algorithms',
+        credentialFile: { name: 'Jenkins_Faculty_Certification.pdf', url: '#', size: '1.8 MB', type: 'application/pdf' },
+        password: 'password123',
+        applicationStatus: 'approved',
+        submittedAt: 'Oct 17, 2026, 02:15 PM',
+        reviewedAt: 'Oct 18, 2026, 10:00 AM',
+        reviewedBy: 'Administrator',
+      },
+      {
+        applicationId: 'APP-1003',
+        userId: 'tch_seed_3',
+        fullName: 'Marcus Sterling',
+        teacherId: 'TCH-2024-003',
+        email: 'marcus.sterling@lumenpath.edu',
+        username: 'marcus.sterling',
+        contactNumber: '+63 919 778 2211',
+        department: 'Physics & Engineering',
+        credentialFile: null,
+        password: 'password123',
+        applicationStatus: 'rejected',
+        rejectionReason: 'Incomplete teaching certification credentials. Please re-apply with official diploma or institutional endorsement.',
+        submittedAt: 'Oct 18, 2026, 11:20 AM',
+        reviewedAt: 'Oct 19, 2026, 03:45 PM',
+        reviewedBy: 'Administrator',
+      },
+    ])
+  );
 
   // Sync to storage
   useEffect(() => setStorage('subjects', subjects), [subjects]);
@@ -398,6 +485,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => setStorage('login_activities', loginActivities), [loginActivities]);
   useEffect(() => setStorage('activity', recentActivity), [recentActivity]);
   useEffect(() => setStorage('active_sessions', activeSessions), [activeSessions]);
+  useEffect(() => setStorage('teacher_applications', teacherApplications), [teacherApplications]);
 
   // Sync with Supabase on mount
   useEffect(() => {
@@ -1243,6 +1331,135 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     setRecentActivity([]);
   };
 
+  const addTeacherApplication = (data: {
+    fullName: string;
+    teacherId?: string;
+    email: string;
+    username: string;
+    contactNumber: string;
+    department: string;
+    credentialFile?: { name: string; url: string; size?: string; type?: string } | null;
+    password?: string;
+  }) => {
+    const appId = `APP-${Math.floor(1000 + Math.random() * 9000)}`;
+    const tchId = data.teacherId || `TCH-${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const newApp: TeacherApplicationRecord = {
+      applicationId: appId,
+      userId: `user_tch_${Date.now()}`,
+      fullName: data.fullName.trim(),
+      teacherId: tchId,
+      email: data.email.trim(),
+      username: data.username.trim().toLowerCase(),
+      contactNumber: data.contactNumber.trim(),
+      department: data.department.trim(),
+      credentialFile: data.credentialFile || null,
+      password: data.password,
+      applicationStatus: 'pending',
+      submittedAt: `${dateStr}, ${timeStr}`,
+      reviewedAt: null,
+      reviewedBy: null,
+    };
+
+    setTeacherApplications((prev) => [newApp, ...prev]);
+
+    addActivity(
+      'New teacher application',
+      `${data.fullName} applied for instructor position in ${data.department} (${tchId}).`
+    );
+
+    try {
+      supabase.from('teacher_applications').insert([{
+        application_id: appId,
+        full_name: data.fullName,
+        teacher_id: tchId,
+        email: data.email,
+        username: data.username,
+        contact_number: data.contactNumber,
+        department: data.department,
+        application_status: 'pending',
+        submitted_at: now.toISOString(),
+      }]).then(() => {}, () => {});
+    } catch {
+      // ignore
+    }
+
+    return newApp;
+  };
+
+  const approveTeacherApplication = (applicationId: string, adminName: string = 'Administrator') => {
+    const now = new Date();
+    const reviewDate = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    let targetApp: TeacherApplicationRecord | null = null;
+    setTeacherApplications((prev) =>
+      prev.map((app) => {
+        if (app.applicationId === applicationId) {
+          targetApp = {
+            ...app,
+            applicationStatus: 'approved',
+            reviewedAt: reviewDate,
+            reviewedBy: adminName,
+            rejectionReason: undefined,
+          };
+          return targetApp;
+        }
+        return app;
+      })
+    );
+
+    if (targetApp) {
+      addActivity(
+        'Teacher application approved',
+        `${(targetApp as TeacherApplicationRecord).fullName} (${(targetApp as TeacherApplicationRecord).teacherId}) was approved as instructor by ${adminName}.`
+      );
+    }
+  };
+
+  const rejectTeacherApplication = (applicationId: string, reason?: string, adminName: string = 'Administrator') => {
+    const now = new Date();
+    const reviewDate = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    let targetApp: TeacherApplicationRecord | null = null;
+    setTeacherApplications((prev) =>
+      prev.map((app) => {
+        if (app.applicationId === applicationId) {
+          targetApp = {
+            ...app,
+            applicationStatus: 'rejected',
+            rejectionReason: reason || 'Application did not meet qualification requirements.',
+            reviewedAt: reviewDate,
+            reviewedBy: adminName,
+          };
+          return targetApp;
+        }
+        return app;
+      })
+    );
+
+    if (targetApp) {
+      addActivity(
+        'Teacher application rejected',
+        `Teacher application for ${(targetApp as TeacherApplicationRecord).fullName} was rejected by ${adminName}.`
+      );
+    }
+  };
+
+  const getTeacherApplication = (identifier: string) => {
+    if (!identifier) return undefined;
+    const q = identifier.trim().toLowerCase();
+    return teacherApplications.find(
+      (a) =>
+        a.email.toLowerCase() === q ||
+        a.username.toLowerCase() === q ||
+        a.teacherId.toLowerCase() === q ||
+        a.applicationId.toLowerCase() === q
+    );
+  };
+
   return (
     <PlatformStoreContext.Provider
       value={{
@@ -1254,6 +1471,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
         students,
         loginActivities,
         recentActivity,
+        teacherApplications,
         completeLesson,
         resetLessonProgress,
         uploadLessonSubmission,
@@ -1279,6 +1497,10 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
         clearLoginActivities,
         deleteStudent,
         toggleStudentStatus,
+        addTeacherApplication,
+        approveTeacherApplication,
+        rejectTeacherApplication,
+        getTeacherApplication,
         addManualResult,
         deleteResult,
         studentStats,
