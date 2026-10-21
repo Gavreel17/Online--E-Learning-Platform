@@ -5580,11 +5580,6 @@ function SignInPage() {
     }, 250);
   };
 
-  const handleQuickDemo = () => {
-    setIdentifier('student@lumenpath.edu');
-    setPassword('student123');
-    setLoginError('');
-  };
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
@@ -5604,49 +5599,7 @@ function SignInPage() {
           </p>
         </div>
 
-        {isSignedIn && role === 'student' && (
-          <div className="mt-5 rounded-2xl border border-teal-700/20 bg-teal-50/60 p-3.5 text-xs text-teal-900">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold truncate">
-                Active Student: {user?.fullName || user?.email}
-              </span>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setLocation('/student/dashboard')}
-                  className="font-bold text-teal-800 underline hover:text-teal-950"
-                >
-                  Go to Dashboard →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => signOut()}
-                  className="text-muted-foreground hover:text-destructive underline text-[11px]"
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Demo Student Quick Fill Helper */}
-        <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <GraduationCap className="size-4 text-teal-700" />
-              <span>Demo: <strong className="text-foreground">student@lumenpath.edu</strong></span>
-            </div>
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              className="rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-teal-800 hover:bg-primary/20 transition-colors"
-              data-testid="button-fill-demo-student"
-            >
-              Fill Demo
-            </button>
-          </div>
-        </div>
 
         {loginError && (
           <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
