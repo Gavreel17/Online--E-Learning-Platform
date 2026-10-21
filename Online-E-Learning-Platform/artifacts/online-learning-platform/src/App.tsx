@@ -27,7 +27,7 @@ import {
   ShieldCheck, Sparkles, Target, Trash2, Trophy, UserRound, Users, X, Zap,
   UploadCloud, FileText, FileCode, FileArchive, FileSpreadsheet, Paperclip, File,
   FileCheck, Eye, EyeOff, Lock, KeyRound, ShieldAlert, ArrowDownToLine, Camera, Image as ImageIcon, User,
-  AlertTriangle,
+  AlertTriangle, Play, Video, Layers, FolderOpen,
 } from 'lucide-react';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 import {
@@ -8977,13 +8977,1208 @@ function TeacherLessonsPage() {
   return <AdminTablePage kind="lessons" />;
 }
 
+// ==========================================
+// DIGITAL LEARNING LIBRARY MODULE
+// ==========================================
+
+interface LibraryResource {
+  id: number;
+  lessonId: number;
+  subjectId: number;
+  subjectName: string;
+  title: string;
+  description: string;
+  resourceType: 'video' | 'pdf' | 'document' | 'reading';
+  typeLabel: string;
+  instructor: string;
+  durationOrSize: string;
+  publishedDate: string;
+  content: string;
+  objectives: string[];
+  materialUrl?: string | null;
+  materialName?: string | null;
+  videoUrl?: string | null;
+  lessonRef?: LessonItem;
+}
+
+function getSubjectCategory(subject: SubjectItem): string {
+  const code = (subject.code || '').toUpperCase();
+  const name = (subject.name || '').toLowerCase();
+  if (code.includes('DBMS') || name.includes('database') || name.includes('data')) return 'Database';
+  if (code.includes('WEB') || name.includes('web') || name.includes('frontend')) return 'Web Development';
+  if (code.includes('PROG') || name.includes('programming') || name.includes('code') || name.includes('algorithm')) return 'Programming';
+  if (code.includes('CS') || name.includes('system') || name.includes('hardware') || name.includes('architecture')) return 'Hardware & Systems';
+  return subject.department || 'Computer Science';
+}
+
+function getSubjectDisplayDescription(subject: SubjectItem): string {
+  const name = (subject.name || '').toLowerCase();
+  if (name.includes('database')) {
+    return 'Explore databases, relational models, SQL, ERDs, and data management.';
+  }
+  if (name.includes('web')) {
+    return 'Learn HTML, CSS, JavaScript, and responsive website development.';
+  }
+  if (name.includes('programming')) {
+    return 'Discover programming fundamentals, variables, loops, functions, and problem-solving.';
+  }
+  if (name.includes('system') || name.includes('hardware')) {
+    return 'Study computer hardware, software, operating systems, and computer fundamentals.';
+  }
+  return subject.description || 'Access curated digital study materials, lectures, and resources.';
+}
+
+function SubjectCoverArt({ subject, isBanner = false }: { subject: SubjectItem; isBanner?: boolean }) {
+  const category = getSubjectCategory(subject);
+  const hClass = isBanner ? 'h-48 sm:h-56' : 'h-40';
+
+  if (category === 'Database') {
+    return (
+      <div className={`relative w-full ${hClass} overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 p-5 flex items-center justify-between border border-teal-500/20 shadow-inner group`}>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-500/15 via-transparent to-transparent" />
+        <div className="relative z-10 max-w-[65%]">
+          <div className="inline-flex items-center gap-1.5 rounded-md bg-teal-500/20 px-2 py-0.5 text-[10px] font-mono-ui font-bold text-teal-300 border border-teal-500/30">
+            <span>RELATIONAL SCHEMA</span>
+          </div>
+          <p className="mt-2 text-xs font-mono text-teal-100/80">SELECT * FROM library;</p>
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-teal-300/70">
+            <span className="inline-block size-1.5 rounded-full bg-teal-400 animate-pulse" />
+            <span>SQL Engine Active</span>
+          </div>
+        </div>
+        {/* Thematic Database SVG Illustration */}
+        <div className="relative z-10 shrink-0 opacity-90 transition-transform duration-500 group-hover:scale-105">
+          <svg className="size-24 sm:size-28 text-teal-400" viewBox="0 0 100 100" fill="none">
+            <ellipse cx="50" cy="22" rx="36" ry="12" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M14 22v24c0 6.6 16.1 12 36 12s36-5.4 36-12V22" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M14 46v24c0 6.6 16.1 12 36 12s36-5.4 36-12V46" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="2.5" />
+            <circle cx="34" cy="22" r="3" fill="#38bdf8" />
+            <circle cx="34" cy="46" r="3" fill="#38bdf8" />
+            <circle cx="34" cy="70" r="3" fill="#38bdf8" />
+            <path d="M48 22h24M48 46h24M48 70h24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (category === 'Web Development') {
+    return (
+      <div className={`relative w-full ${hClass} overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 p-5 flex items-center justify-between border border-emerald-500/20 shadow-inner group`}>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/15 via-transparent to-transparent" />
+        <div className="relative z-10 max-w-[65%]">
+          <div className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-mono-ui font-bold text-emerald-300 border border-emerald-500/30">
+            <span>MODERN FRONTEND</span>
+          </div>
+          <p className="mt-2 text-xs font-mono text-emerald-100/80">&lt;div class=&quot;web&quot;&gt;</p>
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-emerald-300/70">
+            <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>HTML5 • CSS3 • JS</span>
+          </div>
+        </div>
+        {/* Thematic Web Dev SVG Illustration */}
+        <div className="relative z-10 shrink-0 opacity-90 transition-transform duration-500 group-hover:scale-105">
+          <svg className="size-24 sm:size-28 text-emerald-400" viewBox="0 0 100 100" fill="none">
+            <rect x="12" y="18" width="76" height="64" rx="8" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M12 32h76" stroke="currentColor" strokeWidth="2" />
+            <circle cx="22" cy="25" r="2.5" fill="#f87171" />
+            <circle cx="30" cy="25" r="2.5" fill="#fbbf24" />
+            <circle cx="38" cy="25" r="2.5" fill="#34d399" />
+            <path d="M30 52l-8 8 8 8M70 52l8 8-8 8M46 70l8-20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (category === 'Programming') {
+    return (
+      <div className={`relative w-full ${hClass} overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-5 flex items-center justify-between border border-indigo-500/20 shadow-inner group`}>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/15 via-transparent to-transparent" />
+        <div className="relative z-10 max-w-[65%]">
+          <div className="inline-flex items-center gap-1.5 rounded-md bg-indigo-500/20 px-2 py-0.5 text-[10px] font-mono-ui font-bold text-indigo-300 border border-indigo-500/30">
+            <span>ALGORITHMS & LOGIC</span>
+          </div>
+          <p className="mt-2 text-xs font-mono text-indigo-100/80">fn solve() -&gt; Result</p>
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-indigo-300/70">
+            <span className="inline-block size-1.5 rounded-full bg-indigo-400 animate-pulse" />
+            <span>Problem-Solving Core</span>
+          </div>
+        </div>
+        {/* Thematic Programming SVG Illustration */}
+        <div className="relative z-10 shrink-0 opacity-90 transition-transform duration-500 group-hover:scale-105">
+          <svg className="size-24 sm:size-28 text-indigo-400" viewBox="0 0 100 100" fill="none">
+            <rect x="14" y="20" width="72" height="60" rx="8" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="2.5" />
+            <path d="M24 38l8 8-8 8M38 54h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="70" cy="38" r="6" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2" />
+            <circle cx="62" cy="62" r="5" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2" />
+            <circle cx="78" cy="62" r="5" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2" />
+            <path d="M68 44l-4 13M72 44l4 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  if (category === 'Hardware & Systems') {
+    return (
+      <div className={`relative w-full ${hClass} overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-amber-950 to-slate-900 p-5 flex items-center justify-between border border-amber-500/20 shadow-inner group`}>
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-transparent to-transparent" />
+        <div className="relative z-10 max-w-[65%]">
+          <div className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono-ui font-bold text-amber-300 border border-amber-500/30">
+            <span>ARCHITECTURE & OS</span>
+          </div>
+          <p className="mt-2 text-xs font-mono text-amber-100/80">CPU Clock: 4.2 GHz</p>
+          <div className="mt-2 flex items-center gap-2 text-[10px] text-amber-300/70">
+            <span className="inline-block size-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Silicon & Memory Bus</span>
+          </div>
+        </div>
+        {/* Thematic Hardware & Systems SVG Illustration */}
+        <div className="relative z-10 shrink-0 opacity-90 transition-transform duration-500 group-hover:scale-105">
+          <svg className="size-24 sm:size-28 text-amber-400" viewBox="0 0 100 100" fill="none">
+            <rect x="25" y="25" width="50" height="50" rx="6" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="2.5" />
+            <rect x="36" y="36" width="28" height="28" rx="3" fill="currentColor" fillOpacity="0.4" stroke="currentColor" strokeWidth="1.5" />
+            {/* Pins */}
+            <path d="M32 16v9M44 16v9M56 16v9M68 16v9M32 75v9M44 75v9M56 75v9M68 75v9M16 32h9M16 44h9M16 56h9M16 68h9M75 32h9M75 44h9M75 56h9M75 68h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="50" cy="50" r="4" fill="#f59e0b" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  // Default Custom Subject Cover
+  return (
+    <div className={`relative w-full ${hClass} overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900 p-5 flex items-center justify-between border border-teal-500/20 shadow-inner group`}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-500/15 via-transparent to-transparent" />
+      <div className="relative z-10 max-w-[65%]">
+        <div className="inline-flex items-center gap-1.5 rounded-md bg-teal-500/20 px-2 py-0.5 text-[10px] font-mono-ui font-bold text-teal-300 border border-teal-500/30">
+          <span>{subject.code || 'RESOURCE HUB'}</span>
+        </div>
+        <p className="mt-2 text-xs font-mono text-teal-100/80">Digital University Catalog</p>
+        <div className="mt-2 flex items-center gap-2 text-[10px] text-teal-300/70">
+          <span className="inline-block size-1.5 rounded-full bg-teal-400 animate-pulse" />
+          <span>Curated Materials</span>
+        </div>
+      </div>
+      <div className="relative z-10 shrink-0 opacity-90 transition-transform duration-500 group-hover:scale-105">
+        <svg className="size-24 sm:size-28 text-teal-400" viewBox="0 0 100 100" fill="none">
+          <path d="M20 75V35c0-4 12-8 30-8s30 4 30 8v40c0-4-12-8-30-8s-30 4-30 8z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="2.5" />
+          <path d="M50 27v48M20 35c0 4 12 8 30 8s30-4 30-8" stroke="currentColor" strokeWidth="2" />
+          <circle cx="50" cy="20" r="4" fill="#38bdf8" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function deriveLibraryResources(lessons: LessonItem[], subjects: SubjectItem[], isTeacherOrAdmin: boolean): LibraryResource[] {
+  return lessons
+    .filter((l) => isTeacherOrAdmin || l.published !== false)
+    .map((l) => {
+      const subj = subjects.find((s) => s.id === l.subjectId);
+      const titleLower = l.title.toLowerCase();
+      const descLower = l.description.toLowerCase();
+
+      // Intelligent Resource Type Classification matching the user's requirements
+      let resourceType: 'video' | 'pdf' | 'document' | 'reading' = 'reading';
+      let typeLabel = 'Reading Material';
+      let durationOrSize = l.durationMinutes ? `${l.durationMinutes} min read` : '10 min read';
+
+      if (
+        l.lessonType === 'video' ||
+        (l.videoUrl && l.videoUrl.trim() !== '') ||
+        titleLower.includes('video') ||
+        titleLower.includes('sql basics') ||
+        titleLower.includes('sql select') ||
+        titleLower.includes('javascript syntax') ||
+        titleLower.includes('loops in practice') ||
+        titleLower.includes('cpu instruction')
+      ) {
+        resourceType = 'video';
+        typeLabel = 'Video';
+        durationOrSize = `${l.durationMinutes || 18} min`;
+      } else if (
+        l.lessonType === 'pdf' ||
+        (l.materialName && l.materialName.toLowerCase().endsWith('.pdf')) ||
+        titleLower.includes('concepts and terminologies') ||
+        titleLower.includes('database normalization') ||
+        titleLower.includes('css styling') ||
+        titleLower.includes('memory hierarchy')
+      ) {
+        resourceType = 'pdf';
+        typeLabel = 'PDF';
+        durationOrSize = l.materialSize || '2.4 MB';
+      } else if (
+        (l.materialName && (l.materialName.toLowerCase().endsWith('.doc') || l.materialName.toLowerCase().endsWith('.docx') || l.materialName.toLowerCase().endsWith('.ppt'))) ||
+        titleLower.includes('diagram') ||
+        titleLower.includes('erd') ||
+        titleLower.includes('dom manipulation') ||
+        titleLower.includes('functions and modular') ||
+        titleLower.includes('operating systems architecture')
+      ) {
+        resourceType = 'document';
+        typeLabel = 'Document';
+        durationOrSize = l.materialSize || '1.8 MB';
+      } else {
+        resourceType = 'reading';
+        typeLabel = 'Reading';
+        durationOrSize = l.durationMinutes ? `${l.durationMinutes} min read` : '12 min read';
+      }
+
+      return {
+        id: l.id,
+        lessonId: l.id,
+        subjectId: l.subjectId,
+        subjectName: l.subjectName || subj?.name || 'General Subject',
+        title: l.title,
+        description: l.description,
+        resourceType,
+        typeLabel,
+        instructor: subj?.instructor || 'Faculty Specialist',
+        durationOrSize,
+        publishedDate: l.submissionDate || 'Published Resource',
+        content: l.content || '',
+        objectives: l.objectives || [],
+        materialUrl: l.materialUrl,
+        materialName: l.materialName,
+        videoUrl: l.videoUrl,
+        lessonRef: l,
+      };
+    });
+}
+
+function ResourceViewerModal({ resource, onClose }: { resource: LibraryResource; onClose: () => void }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeTab, setActiveTab] = useState<'preview' | 'objectives' | 'notes'>('preview');
+
+  const handleDownload = () => {
+    if (resource.materialUrl && resource.materialName) {
+      downloadFileHelper(resource.materialUrl, resource.materialName);
+      Swal.fire({
+        icon: 'success',
+        title: 'Download Started',
+        text: `Downloading ${resource.materialName}`,
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } else {
+      const rawContent = resource.content ? resource.content.replace(/<[^>]+>/g, '\n').replace(/\n\s*\n/g, '\n\n').trim() : '';
+      const fallbackDoc = `# ${resource.title}\nSubject: ${resource.subjectName}\nInstructor: ${resource.instructor}\nResource Type: ${resource.typeLabel}\n\n## Overview\n${resource.description}\n\n## Learning Objectives\n${(resource.objectives || []).map((o) => `- ${o}`).join('\n')}\n\n## Detailed Reference Content\n${rawContent || 'Resource reference notes compiled for study, exam revision, and practical learning.'}\n`;
+      downloadFileHelper(null, `${resource.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-study-guide.md`, fallbackDoc);
+      Swal.fire({
+        icon: 'success',
+        title: 'Study Notes Downloaded',
+        text: `Saved study guide for "${resource.title}"`,
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-card-border bg-card p-6 sm:p-8 shadow-2xl">
+        {/* Modal Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${
+                  resource.resourceType === 'video'
+                    ? 'bg-rose-500/15 text-rose-600'
+                    : resource.resourceType === 'pdf'
+                    ? 'bg-red-500/15 text-red-600'
+                    : resource.resourceType === 'document'
+                    ? 'bg-sky-500/15 text-sky-600'
+                    : 'bg-teal-500/15 text-teal-700'
+                }`}
+              >
+                {resource.typeLabel}
+              </span>
+              <span className="text-xs text-muted-foreground">• {resource.subjectName}</span>
+              <span className="text-xs text-muted-foreground">• Instructor: {resource.instructor}</span>
+            </div>
+            <h2 className="mt-1 font-display text-xl sm:text-2xl font-extrabold text-primary">
+              {resource.title}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-border p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title="Close viewer"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="mt-6 space-y-6">
+          {/* Format specific view */}
+          {resource.resourceType === 'video' && (
+            <div className="overflow-hidden rounded-2xl border border-border bg-slate-950 text-white shadow-lg">
+              <div className="relative aspect-video w-full bg-gradient-to-tr from-slate-950 via-slate-900 to-teal-950 flex flex-col items-center justify-center p-6 text-center">
+                <div className="size-20 rounded-full bg-accent text-primary flex items-center justify-center shadow-xl cursor-pointer hover:scale-110 transition-transform" onClick={() => setIsPlaying(!isPlaying)}>
+                  {isPlaying ? <span className="font-bold text-lg">⏸</span> : <Play className="size-9 fill-current ml-1" />}
+                </div>
+                <p className="mt-4 font-display text-lg font-bold text-teal-100">{resource.title}</p>
+                <p className="mt-1 text-xs text-teal-300/70 font-mono">Curated Video Lecture • {resource.durationOrSize}</p>
+                {isPlaying && (
+                  <div className="mt-3 rounded-full bg-teal-500/20 px-3 py-1 text-xs text-teal-300 border border-teal-500/40 animate-pulse">
+                    Playing Lecture Simulation • 1080p High Definition
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-300">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setIsPlaying(!isPlaying)} className="font-bold hover:text-accent">
+                    {isPlaying ? 'Pause' : 'Play'}
+                  </button>
+                  <span className="text-slate-500">|</span>
+                  <span>0:00 / {resource.durationOrSize}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono">1.0x</span>
+                  <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono">HD</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {resource.resourceType === 'pdf' && (
+            <div className="rounded-2xl border border-border bg-amber-500/5 p-6 border-dashed">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-12 place-items-center rounded-xl bg-red-500/10 text-red-600">
+                    <FileText className="size-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-primary">{resource.materialName || `${resource.title}.pdf`}</p>
+                    <p className="text-xs text-muted-foreground">Digital University PDF • {resource.durationOrSize}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="rounded-xl bg-primary text-accent px-4 py-2 text-xs font-bold hover:opacity-90 transition-opacity flex items-center gap-2"
+                >
+                  <Download className="size-4" />
+                  <span>Download Document</span>
+                </button>
+              </div>
+              <div className="mt-4 rounded-xl bg-card p-5 border border-border shadow-sm text-sm text-foreground space-y-3 leading-relaxed">
+                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground border-b border-border pb-2">
+                  <span>DOCUMENT PREVIEW • PAGE 1 OF 6</span>
+                  <span className="text-teal-700">LumenPath Academic Publication</span>
+                </div>
+                <p className="font-semibold text-primary">{resource.description}</p>
+                <div className="rounded-lg bg-muted/60 p-3 text-xs font-mono space-y-1">
+                  <p className="font-bold text-primary">Key Curriculum Highlights:</p>
+                  {(resource.objectives || []).map((obj, idx) => (
+                    <p key={idx} className="text-muted-foreground">• {obj}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {resource.resourceType === 'document' && (
+            <div className="rounded-2xl border border-border bg-sky-500/5 p-6 border-dashed">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-12 place-items-center rounded-xl bg-sky-500/10 text-sky-600">
+                    <Paperclip className="size-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-primary">{resource.materialName || `${resource.title}.docx`}</p>
+                    <p className="text-xs text-muted-foreground">Supplementary Course Material • {resource.durationOrSize}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="rounded-xl bg-primary text-accent px-4 py-2 text-xs font-bold hover:opacity-90 transition-opacity flex items-center gap-2"
+                >
+                  <Download className="size-4" />
+                  <span>Download Document</span>
+                </button>
+              </div>
+              <div className="mt-4 rounded-xl bg-card p-5 border border-border shadow-sm text-sm text-foreground space-y-3 leading-relaxed">
+                <p className="font-semibold text-primary">{resource.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  Contains detailed diagrams, reference templates, and instructor problem sets prepared for academic study.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {resource.resourceType === 'reading' && (
+            <div className="rounded-2xl border border-border bg-teal-500/5 p-6">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-teal-700">
+                  <BookOpen className="size-4" />
+                  <span>Interactive Reading Article • {resource.durationOrSize}</span>
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="text-xs font-bold text-teal-700 hover:underline flex items-center gap-1"
+                >
+                  <Download className="size-3.5" />
+                  <span>Save Notes (.md)</span>
+                </button>
+              </div>
+              <div className="mt-4 space-y-4 text-sm leading-relaxed text-foreground">
+                <p className="text-base font-medium text-primary">{resource.description}</p>
+                <div className="rounded-xl bg-card p-4 border border-border">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-teal-700">Curriculum Objectives</h4>
+                  <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground">
+                    {(resource.objectives || []).map((obj, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="size-3.5 text-teal-600 shrink-0 mt-0.5" />
+                        <span>{obj}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Full content / lesson notes reader */}
+          {resource.content && (
+            <div className="rounded-2xl border border-card-border bg-card p-5 text-sm">
+              <h3 className="font-display text-sm font-bold text-primary mb-3">Resource Content & Detailed Guide</h3>
+              <div
+                className="prose prose-sm max-w-none text-muted-foreground leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: resource.content }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="text-xs text-muted-foreground">
+            LumenPath Digital Learning Center • Authorized Subject Material
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-primary shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"
+            >
+              <Download className="size-4" />
+              <span>Download File / Guide</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-xl border border-border bg-background px-4 py-2.5 text-xs font-bold text-foreground hover:bg-muted transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DigitalLibraryPage({ role = 'student' }: { role?: 'student' | 'teacher' | 'admin' }) {
+  const { subjects, lessons } = usePlatformStore();
+  const [, setLocation] = useLocation();
+  const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
+
+  // Read URL query parameter if present (?subject=ID)
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search).get('subject');
+      if (sp && !isNaN(Number(sp))) return Number(sp);
+    }
+    return null;
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [resourceTypeFilter, setResourceTypeFilter] = useState<'all' | 'video' | 'pdf' | 'document' | 'reading'>('all');
+  const [activeViewerResource, setActiveViewerResource] = useState<LibraryResource | null>(null);
+
+  // Sync with URL query on back/forward
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search).get('subject');
+      if (sp && !isNaN(Number(sp))) {
+        setSelectedSubjectId(Number(sp));
+      }
+    }
+  }, []);
+
+  const allResources = useMemo(() => {
+    return deriveLibraryResources(lessons, subjects, isTeacherOrAdmin);
+  }, [lessons, subjects, isTeacherOrAdmin]);
+
+  // Selected subject object
+  const activeSubject = useMemo(() => {
+    if (!selectedSubjectId) return null;
+    return subjects.find((s) => s.id === selectedSubjectId) || null;
+  }, [selectedSubjectId, subjects]);
+
+  // Resources belonging exclusively to the active subject
+  const subjectResources = useMemo(() => {
+    if (!selectedSubjectId) return [];
+    return allResources.filter((r) => r.subjectId === selectedSubjectId);
+  }, [allResources, selectedSubjectId]);
+
+  // Filtered resources inside the selected subject
+  const filteredSubjectResources = useMemo(() => {
+    return subjectResources.filter((r) => {
+      const matchType = resourceTypeFilter === 'all' || r.resourceType === resourceTypeFilter;
+      const matchSearch =
+        !searchQuery.trim() ||
+        `${r.title} ${r.description} ${r.subjectName} ${r.typeLabel}`.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchType && matchSearch;
+    });
+  }, [subjectResources, resourceTypeFilter, searchQuery]);
+
+  // Filtered subjects on the main catalog view
+  const filteredSubjects = useMemo(() => {
+    return subjects.filter((s) => {
+      // Category filter
+      if (categoryFilter !== 'all') {
+        const cat = getSubjectCategory(s);
+        const name = s.name.toLowerCase();
+        const target = categoryFilter.toLowerCase();
+        if (!cat.toLowerCase().includes(target) && !name.includes(target)) {
+          return false;
+        }
+      }
+      // Resource-type filter on subject card level (only show subjects with that resource type)
+      if (resourceTypeFilter !== 'all') {
+        const hasMatchingResource = allResources.some(
+          (r) => r.subjectId === s.id && r.resourceType === resourceTypeFilter
+        );
+        if (!hasMatchingResource) return false;
+      }
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchSubject =
+          s.name.toLowerCase().includes(q) ||
+          s.code.toLowerCase().includes(q) ||
+          (s.description || '').toLowerCase().includes(q) ||
+          getSubjectCategory(s).toLowerCase().includes(q);
+        const hasMatchingResource = allResources.some(
+          (r) => r.subjectId === s.id && (r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q))
+        );
+        return matchSubject || hasMatchingResource;
+      }
+      return true;
+    });
+  }, [subjects, categoryFilter, resourceTypeFilter, searchQuery, allResources]);
+
+  // Direct matching resources when searching from the main catalog
+  const directMatchingResources = useMemo(() => {
+    if (!searchQuery.trim() || selectedSubjectId) return [];
+    return allResources.filter((r) => {
+      const q = searchQuery.toLowerCase();
+      const matchSearch = r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
+      const matchType = resourceTypeFilter === 'all' || r.resourceType === resourceTypeFilter;
+      return matchSearch && matchType;
+    });
+  }, [searchQuery, selectedSubjectId, allResources, resourceTypeFilter]);
+
+  // Handlers for subject navigation
+  const handleOpenSubject = (subjectId: number) => {
+    setSelectedSubjectId(subjectId);
+    setSearchQuery('');
+    setResourceTypeFilter('all');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToLibrary = () => {
+    setSelectedSubjectId(null);
+    setSearchQuery('');
+    setResourceTypeFilter('all');
+  };
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* ======================================================== */}
+      {/* 1. TOP HEADER (Learning Library with digital resource style) */}
+      {/* ======================================================== */}
+      <div className="relative overflow-hidden rounded-3xl border border-card-border bg-card p-6 sm:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10 px-3 py-1 text-xs font-bold text-teal-700 border border-teal-500/20">
+                <Compass className="size-3.5" />
+                <span>Digital University Resource Center</span>
+              </span>
+              {selectedSubjectId && activeSubject && (
+                <span className="rounded-full bg-accent/20 px-2.5 py-0.5 text-xs font-bold text-primary">
+                  {activeSubject.name}
+                </span>
+              )}
+            </div>
+            <h1 className="mt-2 font-display text-2xl sm:text-3xl font-extrabold text-primary tracking-tight">
+              Learning Library
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+              Explore subjects, discover learning resources, and find materials to support your learning journey.
+            </p>
+          </div>
+
+          {/* Quick Library Metrics */}
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-border bg-background px-4 py-2.5 text-center shadow-xs">
+              <p className="font-display text-lg font-bold text-primary">{subjects.length}</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Subjects</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-background px-4 py-2.5 text-center shadow-xs">
+              <p className="font-display text-lg font-bold text-teal-700">{allResources.length}</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Resources</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Global Search Bar */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative w-full flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search subjects, topics, or learning resources..."
+              className="w-full rounded-2xl border border-border bg-background pl-10 pr-10 py-3 text-sm outline-none focus:border-teal-700 transition-colors shadow-xs"
+              data-testid="input-library-search"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                title="Clear search"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Category & Resource Type Filter Bars */}
+        {!selectedSubjectId && (
+          <div className="mt-5 space-y-3 pt-4 border-t border-border">
+            {/* Subject Categories */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-primary mr-1">Categories:</span>
+              <button
+                onClick={() => setCategoryFilter('all')}
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                  categoryFilter === 'all'
+                    ? 'bg-primary text-accent shadow-xs'
+                    : 'border border-border bg-background text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                All Subjects
+              </button>
+              {['Database Management', 'Web Development', 'Programming', 'Computer Systems'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                    categoryFilter === cat
+                      ? 'bg-teal-700 text-white shadow-xs'
+                      : 'border border-border bg-background text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Resource Type Filters */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-xs font-bold text-primary mr-1">Resource Type:</span>
+              {[
+                { id: 'all', label: 'All Resources', icon: Layers },
+                { id: 'video', label: 'Video', icon: Video },
+                { id: 'pdf', label: 'PDF', icon: FileText },
+                { id: 'document', label: 'Documents', icon: Paperclip },
+                { id: 'reading', label: 'Reading Materials', icon: BookOpen },
+              ].map((rt) => {
+                const IconComponent = rt.icon;
+                const isSelected = resourceTypeFilter === rt.id;
+                return (
+                  <button
+                    key={rt.id}
+                    onClick={() => setResourceTypeFilter(rt.id as any)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'bg-accent text-primary shadow-xs'
+                        : 'border border-border bg-background text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <IconComponent className="size-3.5" />
+                    <span>{rt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. MAIN CATALOG VIEW: RESPONSIVE GRID OF SUBJECT CARDS  */}
+      {/* ======================================================== */}
+      {!selectedSubjectId ? (
+        <div className="space-y-8">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="font-display text-xl font-bold text-primary">Browse By Subject</h2>
+                <p className="text-xs text-muted-foreground">Select a subject card to explore its dedicated digital collection</p>
+              </div>
+              <span className="text-xs font-bold text-teal-700">
+                {filteredSubjects.length} of {subjects.length} Subjects Available
+              </span>
+            </div>
+
+            {filteredSubjects.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center">
+                <FolderOpen className="mx-auto size-12 text-muted-foreground/60" />
+                <h3 className="mt-3 font-display text-base font-bold text-primary">No subjects found</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Try adjusting your search query or category filters to find available subject materials.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCategoryFilter('all');
+                    setResourceTypeFilter('all');
+                  }}
+                  className="mt-4 rounded-xl bg-primary text-accent px-4 py-2 text-xs font-bold hover:opacity-90"
+                >
+                  Reset All Filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredSubjects.map((subject) => {
+                  const subjectResList = allResources.filter((r) => r.subjectId === subject.id);
+                  const resCount = subjectResList.length;
+                  const category = getSubjectCategory(subject);
+                  const desc = getSubjectDisplayDescription(subject);
+                  const lessonCount = lessons.filter(
+                    (l) => l.subjectId === subject.id && (isTeacherOrAdmin || l.published !== false)
+                  ).length;
+
+                  return (
+                    <div
+                      key={subject.id}
+                      onClick={() => handleOpenSubject(subject.id)}
+                      className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-card-border bg-card shadow-sm hover:shadow-xl hover:border-teal-700/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                      data-testid={`card-subject-${subject.id}`}
+                    >
+                      {/* Top Visual Cover Illustration */}
+                      <div className="relative p-2">
+                        <SubjectCoverArt subject={subject} />
+                        <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5">
+                          <span className="rounded-lg bg-slate-900/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-accent border border-white/10">
+                            {category}
+                          </span>
+                        </div>
+                        <div className="absolute top-4 right-4 z-20">
+                          <span className="rounded-lg bg-slate-900/80 backdrop-blur-sm px-2 py-1 text-[10px] font-mono font-bold text-teal-300 border border-white/10">
+                            {subject.code}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Content */}
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div>
+                          <h3 className="font-display text-lg font-bold text-primary group-hover:text-teal-700 transition-colors line-clamp-1">
+                            {subject.name}
+                          </h3>
+                          <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                            {desc}
+                          </p>
+                        </div>
+
+                        {/* Subject Metadata Stats */}
+                        <div className="space-y-2 border-t border-border pt-3">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="inline-flex items-center gap-1.5 font-bold text-teal-700">
+                              <Layers className="size-3.5" />
+                              <span>{resCount} {resCount === 1 ? 'Resource' : 'Resources'}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px]">
+                              <BookOpen className="size-3.5 text-muted-foreground" />
+                              <span>{lessonCount} {lessonCount === 1 ? 'Lesson' : 'Lessons'}</span>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground truncate">
+                            <User className="size-3 text-muted-foreground shrink-0" />
+                            <span className="truncate">{subject.instructor || 'Faculty Specialist'}</span>
+                          </div>
+                        </div>
+
+                        {/* Explore Library Action Button */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenSubject(subject.id);
+                          }}
+                          className="w-full rounded-2xl bg-primary text-accent py-2.5 text-xs font-bold shadow-[2px_2px_0_hsl(var(--accent))] hover:bg-teal-700 hover:text-white transition-all flex items-center justify-center gap-2 group-hover:shadow-md"
+                          data-testid={`button-explore-subject-${subject.id}`}
+                        >
+                          <span>Explore Library</span>
+                          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Direct Matching Resources when Search Query is Active */}
+          {searchQuery.trim() && directMatchingResources.length > 0 && (
+            <div className="pt-6 border-t border-border">
+              <div className="mb-4">
+                <h3 className="font-display text-lg font-bold text-primary">
+                  Direct Resource Matches ({directMatchingResources.length})
+                </h3>
+                <p className="text-xs text-muted-foreground">Individual learning materials matching &quot;{searchQuery}&quot;</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {directMatchingResources.map((res) => (
+                  <div
+                    key={res.id}
+                    onClick={() => setActiveViewerResource(res)}
+                    className="flex flex-col justify-between rounded-2xl border border-card-border bg-card p-4 hover:border-teal-700/50 hover:shadow-md transition-all cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-2">
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                            res.resourceType === 'video'
+                              ? 'bg-rose-500/10 text-rose-600'
+                              : res.resourceType === 'pdf'
+                              ? 'bg-red-500/10 text-red-600'
+                              : res.resourceType === 'document'
+                              ? 'bg-sky-500/10 text-sky-600'
+                              : 'bg-teal-500/10 text-teal-700'
+                          }`}
+                        >
+                          {res.typeLabel}
+                        </span>
+                        <span className="text-[11px] font-bold text-teal-700">{res.subjectName}</span>
+                      </div>
+                      <h4 className="font-display text-sm font-bold text-primary hover:text-teal-700 line-clamp-1">
+                        {res.title}
+                      </h4>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{res.description}</p>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between pt-2 border-t border-border text-xs">
+                      <span className="text-[11px] text-muted-foreground">{res.durationOrSize}</span>
+                      <span className="font-bold text-teal-700 hover:underline">View Resource →</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ======================================================== */
+        /* 3. DEDICATED SUBJECT RESOURCE DETAILS PAGE              */
+        /* ======================================================== */
+        activeSubject && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Navigation Breadcrumb / Back Button */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleBackToLibrary}
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold text-primary hover:bg-muted transition-colors shadow-xs"
+                data-testid="button-back-to-library"
+              >
+                <span>← Back to Library</span>
+              </button>
+              <div className="text-xs text-muted-foreground">
+                <span className="text-teal-700 font-bold">{activeSubject.name}</span> • {subjectResources.length} Total Materials
+              </div>
+            </div>
+
+            {/* Subject Hero Cover Banner */}
+            <div className="overflow-hidden rounded-3xl border border-card-border bg-card shadow-sm">
+              <div className="relative p-2">
+                <SubjectCoverArt subject={activeSubject} isBanner={true} />
+              </div>
+              <div className="p-6 sm:p-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-md bg-teal-500/15 px-2.5 py-0.5 text-xs font-bold text-teal-700">
+                        {getSubjectCategory(activeSubject)}
+                      </span>
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-mono font-bold text-muted-foreground">
+                        {activeSubject.code}
+                      </span>
+                      {activeSubject.department && (
+                        <span className="text-xs text-muted-foreground">• {activeSubject.department}</span>
+                      )}
+                    </div>
+                    <h2 className="mt-2 font-display text-2xl sm:text-3xl font-extrabold text-primary">
+                      {activeSubject.name}
+                    </h2>
+                    <p className="mt-1.5 text-sm text-muted-foreground max-w-2xl leading-relaxed">
+                      {getSubjectDisplayDescription(activeSubject)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex flex-col sm:items-end gap-1 text-xs text-muted-foreground">
+                    <p className="font-bold text-primary">Lead Instructor</p>
+                    <p>{activeSubject.instructor || 'Faculty Specialist'}</p>
+                    <p className="text-[11px] text-teal-700">{activeSubject.instructorEmail || 'faculty@lumenpath.edu'}</p>
+                  </div>
+                </div>
+
+                {/* Resource-type filter chips with exact counts */}
+                <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                  {[
+                    { id: 'all', label: 'All Resources', count: subjectResources.length },
+                    { id: 'video', label: 'Videos', count: subjectResources.filter((r) => r.resourceType === 'video').length },
+                    { id: 'pdf', label: 'PDFs', count: subjectResources.filter((r) => r.resourceType === 'pdf').length },
+                    { id: 'document', label: 'Documents', count: subjectResources.filter((r) => r.resourceType === 'document').length },
+                    { id: 'reading', label: 'Reading Materials', count: subjectResources.filter((r) => r.resourceType === 'reading').length },
+                  ].map((filterTab) => (
+                    <button
+                      key={filterTab.id}
+                      onClick={() => setResourceTypeFilter(filterTab.id as any)}
+                      className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all ${
+                        resourceTypeFilter === filterTab.id
+                          ? 'bg-primary text-accent shadow-xs'
+                          : 'border border-border bg-background text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {filterTab.label} ({filterTab.count})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Individual Resource Cards Grid */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display text-lg font-bold text-primary">
+                  Learning Materials ({filteredSubjectResources.length})
+                </h3>
+                {resourceTypeFilter !== 'all' && (
+                  <button
+                    onClick={() => setResourceTypeFilter('all')}
+                    className="text-xs font-bold text-teal-700 hover:underline"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+
+              {filteredSubjectResources.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center space-y-3">
+                  <FolderOpen className="mx-auto size-12 text-muted-foreground/60" />
+                  <h4 className="font-display text-base font-bold text-primary">
+                    No learning resources available for this subject yet.
+                  </h4>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    The instructor has not published any learning materials matching this filter. Check back soon or try selecting &quot;All Resources&quot;.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setResourceTypeFilter('all');
+                      setSearchQuery('');
+                    }}
+                    className="rounded-xl bg-primary text-accent px-4 py-2 text-xs font-bold hover:opacity-90"
+                  >
+                    View All Resources in {activeSubject.name}
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredSubjectResources.map((res) => {
+                    const isVideo = res.resourceType === 'video';
+                    const isPdf = res.resourceType === 'pdf';
+                    const isDoc = res.resourceType === 'document';
+
+                    return (
+                      <div
+                        key={res.id}
+                        className="group flex flex-col justify-between overflow-hidden rounded-3xl border border-card-border bg-card shadow-sm hover:shadow-lg hover:border-teal-700/40 transition-all duration-300"
+                        data-testid={`card-resource-${res.id}`}
+                      >
+                        <div>
+                          {/* Card Thumbnail / Header */}
+                          <div
+                            className={`relative h-32 w-full p-4 flex flex-col justify-between overflow-hidden cursor-pointer ${
+                              isVideo
+                                ? 'bg-gradient-to-br from-slate-950 via-rose-950 to-slate-900'
+                                : isPdf
+                                ? 'bg-gradient-to-br from-slate-950 via-red-950 to-slate-900'
+                                : isDoc
+                                ? 'bg-gradient-to-br from-slate-950 via-sky-950 to-slate-900'
+                                : 'bg-gradient-to-br from-slate-950 via-teal-950 to-slate-900'
+                            }`}
+                            onClick={() => setActiveViewerResource(res)}
+                          >
+                            <div className="flex items-center justify-between z-10">
+                              <span
+                                className={`rounded-md px-2.5 py-0.5 text-[10px] font-bold ${
+                                  isVideo
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                    : isPdf
+                                    ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                    : isDoc
+                                    ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                    : 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                }`}
+                              >
+                                {res.typeLabel}
+                              </span>
+                              <span className="rounded-md bg-black/50 backdrop-blur-xs px-2 py-0.5 text-[10px] font-mono font-bold text-white/90">
+                                {res.durationOrSize}
+                              </span>
+                            </div>
+
+                            {/* Center Preview Icon */}
+                            <div className="z-10 flex items-center gap-2">
+                              {isVideo && (
+                                <div className="grid size-10 place-items-center rounded-full bg-accent text-primary shadow-md group-hover:scale-110 transition-transform">
+                                  <Play className="size-4 fill-current ml-0.5" />
+                                </div>
+                              )}
+                              {isPdf && (
+                                <div className="grid size-10 place-items-center rounded-xl bg-red-500/20 text-red-300 border border-red-500/30 shadow-md">
+                                  <FileText className="size-5" />
+                                </div>
+                              )}
+                              {isDoc && (
+                                <div className="grid size-10 place-items-center rounded-xl bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-md">
+                                  <Paperclip className="size-5" />
+                                </div>
+                              )}
+                              {!isVideo && !isPdf && !isDoc && (
+                                <div className="grid size-10 place-items-center rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/30 shadow-md">
+                                  <BookOpen className="size-5" />
+                                </div>
+                              )}
+                              <p className="text-xs font-mono font-bold text-white/90 truncate">{res.subjectName}</p>
+                            </div>
+                          </div>
+
+                          {/* Card Body */}
+                          <div className="p-5 space-y-2.5">
+                            <h4
+                              onClick={() => setActiveViewerResource(res)}
+                              className="font-display text-base font-bold text-primary group-hover:text-teal-700 transition-colors line-clamp-1 cursor-pointer"
+                              title={res.title}
+                            >
+                              {res.title}
+                            </h4>
+                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                              {res.description}
+                            </p>
+                            <div className="pt-2 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>Instructor: {res.instructor}</span>
+                              <span className="text-[10px]">{res.publishedDate}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="p-5 pt-0 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setActiveViewerResource(res)}
+                            className="flex-1 rounded-xl bg-primary text-accent py-2 text-xs font-bold hover:bg-teal-700 hover:text-white transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                          >
+                            {isVideo ? (
+                              <>
+                                <Play className="size-3.5 fill-current" />
+                                <span>Watch Video</span>
+                              </>
+                            ) : isPdf ? (
+                              <>
+                                <Eye className="size-3.5" />
+                                <span>View PDF</span>
+                              </>
+                            ) : isDoc ? (
+                              <>
+                                <FileText className="size-3.5" />
+                                <span>View Document</span>
+                              </>
+                            ) : (
+                              <>
+                                <BookOpen className="size-3.5" />
+                                <span>Read Material</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (res.materialUrl && res.materialName) {
+                                downloadFileHelper(res.materialUrl, res.materialName);
+                              } else {
+                                const raw = res.content ? res.content.replace(/<[^>]+>/g, '\n').replace(/\n\s*\n/g, '\n\n').trim() : '';
+                                downloadFileHelper(null, `${res.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`, `# ${res.title}\n\n${res.description}\n\n${raw}`);
+                              }
+                              Swal.fire({
+                                icon: 'success',
+                                title: 'Download Triggered',
+                                text: `Saving ${res.title}`,
+                                timer: 1500,
+                                showConfirmButton: false,
+                              });
+                            }}
+                            className="rounded-xl border border-border bg-background p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            title="Download resource directly"
+                          >
+                            <Download className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ======================================================== */}
+      {/* 4. MODAL: RESOURCE VIEWER FOR VIDEOS, PDFS, READINGS     */}
+      {/* ======================================================== */}
+      {activeViewerResource && (
+        <ResourceViewerModal
+          resource={activeViewerResource}
+          onClose={() => setActiveViewerResource(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 function TeacherLibraryPage() {
-  return <LessonsPage />;
+  return <DigitalLibraryPage role="teacher" />;
 }
 
 function StudentLibraryPage() {
-  return <LessonsPage />;
+  return <DigitalLibraryPage role="student" />;
 }
+
 
 function TeacherQuizzesPage() {
   return <AdminTablePage kind="quizzes" />;
