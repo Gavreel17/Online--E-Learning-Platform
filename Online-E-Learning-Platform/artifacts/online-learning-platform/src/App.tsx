@@ -5680,11 +5680,14 @@ function SignInPage() {
 }
 
 function SignUpPage() {
-  const { signUp, isSignedIn, role } = useAuth();
+  const { signIn, isSignedIn, role } = useAuth();
   const store = usePlatformStore();
   const [, setLocation] = useLocation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   if (isSignedIn) {
@@ -5697,7 +5700,9 @@ function SignUpPage() {
     const studentEmail = email.trim() || 'learner@lumenpath.local';
     const studentId = `STU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // Add student to store/database automatically
+    setIsLoading(true);
+
+    // Add student to store first
     store.addStudent({
       fullName: studentName,
       email: studentEmail,
@@ -5706,27 +5711,33 @@ function SignUpPage() {
       progress: 0,
     });
 
-    // Create session and record successful initial login
-    signUp(studentName, studentEmail, 'student');
-    store.recordStudentLogin(studentEmail, studentName, studentId);
+    // Use setTimeout so the auth state settles before navigation fires
+    setTimeout(() => {
+      signIn('student', studentName, studentEmail, studentId);
+      store.recordStudentLogin(studentEmail, studentName, studentId);
+      setIsLoading(false);
 
-    toast({
-      title: 'Registration Successful',
-      description: `Welcome ${studentName}! Your student account is active.`,
-    });
+      toast({
+        title: 'Registration Successful',
+        description: `Welcome ${studentName}! Your student account is active.`,
+      });
 
-    setLocation('/student/dashboard');
+      setLocation('/student/dashboard');
+    }, 300);
   };
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl">
+      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl animate-rise">
         <div className="text-center">
-          <div className="inline-block mb-3">
-            <Brand />
+          <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
+            <GraduationCap className="size-7" />
           </div>
-          <h1 className="font-display text-2xl font-extrabold text-primary">Join LumenPath</h1>
-          <p className="mt-1 text-xs text-muted-foreground">Create your student account to track progress and earn milestones</p>
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Student Portal
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold text-primary">Create Account</h1>
+          <p className="mt-1 text-xs text-muted-foreground">Join LumenPath and start your learning journey today.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -5736,7 +5747,7 @@ function SignUpPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Taylor Swift"
+              placeholder="e.g. Juan Dela Cruz"
               className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
               data-testid="input-signup-name"
             />
@@ -5749,18 +5760,44 @@ function SignUpPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="taylor@example.com"
+              placeholder="juan@example.com"
               className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
               data-testid="input-signup-email"
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-primary">Password</label>
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signup-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </div>
+
           <button
             type="submit"
-            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform"
+            disabled={isLoading}
+            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
             data-testid="button-signup-submit"
           >
-            Create My Student Account
+            {isLoading ? 'Creating account...' : 'Create My Student Account'}
           </button>
         </form>
 
