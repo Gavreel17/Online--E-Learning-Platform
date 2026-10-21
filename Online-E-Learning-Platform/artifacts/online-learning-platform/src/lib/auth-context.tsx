@@ -32,7 +32,7 @@ interface AuthContextType {
   isLoaded: boolean;
   user: UserProfile | null;
   role: 'student' | 'admin';
-  signIn: (role?: 'student' | 'admin', name?: string, email?: string) => void;
+  signIn: (role?: 'student' | 'admin', name?: string, email?: string, studentId?: string) => void;
   signUp: (name: string, email: string, role?: 'student' | 'admin') => void;
   signOut: () => void;
   switchRole: (role: 'student' | 'admin') => void;
@@ -70,9 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const signIn = (role: 'student' | 'admin' = 'student', name?: string, email?: string) => {
+  const signIn = (role: 'student' | 'admin' = 'student', name?: string, email?: string, customStudentId?: string) => {
     const id = `user_${Date.now()}`;
-    const studentId = role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`;
+    const studentId = customStudentId || (role === 'admin' ? `ADM-${Date.now().toString().slice(-4)}` : `STU-${Date.now().toString().slice(-4)}`);
     if (role === 'admin') {
       setUser({
         ...DEFAULT_ADMIN,

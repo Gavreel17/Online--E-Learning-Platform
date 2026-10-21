@@ -424,7 +424,7 @@ function AppShell({ children, admin = false, preview = false }: { children: Reac
 
   const handleSignOut = () => {
     signOut();
-    setLocation(admin ? '/admin/login' : '/sign-in');
+    setLocation(admin ? '/admin/login' : '/student/login');
   };
 
   const isItemActive = (href: string) => {
@@ -597,8 +597,8 @@ function Landing() {
       <header className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 md:px-8">
         <Brand />
         <div className="flex items-center gap-3">
-          <Link href="/sign-in" className="hidden rounded-xl px-4 py-2 text-sm font-bold text-primary hover:bg-muted sm:block" data-testid="link-sign-in">
-            Sign in
+          <Link href="/student/login" className="hidden rounded-xl px-4 py-2 text-sm font-bold text-primary hover:bg-muted sm:block" data-testid="link-sign-in">
+            Student Login
           </Link>
           <Link
             href="/sign-up"
@@ -630,11 +630,11 @@ function Landing() {
               Build your learning rhythm <ArrowRight className="ml-2 inline size-4" />
             </Link>
             <Link
-              href="/sign-in"
+              href="/student/login"
               className="rounded-xl border border-primary-foreground/25 px-5 py-3 font-bold text-primary-foreground hover:bg-primary-foreground/10"
               data-testid="link-hero-signin"
             >
-              Sign in to your space
+              Student Login
             </Link>
           </div>
         </div>
@@ -656,7 +656,15 @@ function Landing() {
       </section>
       <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between md:px-8">
         <Brand />
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <Link href="/student/login" className="font-semibold text-primary hover:text-teal-700">
+            Student Login
+          </Link>
+          <span>•</span>
+          <Link href="/admin/login" className="font-semibold text-primary hover:text-teal-700">
+            Admin Portal
+          </Link>
+          <span>•</span>
           <span>Learning is a direction, not a deadline.</span>
         </div>
       </footer>
@@ -5282,7 +5290,7 @@ function ReportsPage() {
 function Protected({ children, admin = false }: { children: ReactNode; admin?: boolean }) {
   const { isLoaded, isSignedIn, role } = useAuth();
   if (!isLoaded) return <Loading label="Opening LumenPath" />;
-  if (!isSignedIn) return <Redirect to={admin ? "/admin/login" : "/sign-in"} />;
+  if (!isSignedIn) return <Redirect to={admin ? "/admin/login" : "/student/login"} />;
   if (admin && role !== 'admin') {
     return <Redirect to="/admin/login" />;
   }
@@ -5500,8 +5508,8 @@ function AdminLoginPage() {
           </p>
           
           <div className="flex w-full justify-between text-muted-foreground">
-            <Link href="/sign-in" className="font-bold text-teal-700 hover:underline">
-              ← Student sign in
+            <Link href="/student/login" className="font-bold text-teal-700 hover:underline">
+              ← Student login
             </Link>
             <Link href="/" className="hover:underline">
               Home
@@ -5514,92 +5522,141 @@ function AdminLoginPage() {
 }
 
 function SignInPage() {
-  const { signIn, user, isSignedIn, role } = useAuth();
+  const { signIn, signOut, user, isSignedIn, role } = useAuth();
   const store = usePlatformStore();
   const [location, setLocation] = useLocation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleCustomSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setLoginError('Please enter your email address.');
+    const trimmedInput = identifier.trim();
+    if (!trimmedInput) {
+      setLoginError('Please enter your email, student ID, or username.');
       return;
     }
 
-    // Do not record failed login attempts as successful logins.
     if (!password || password.trim().length < 4) {
       setLoginError('Invalid credentials. Password must be at least 4 characters.');
       return;
     }
 
-    const isEmailAdmin = trimmedEmail.toLowerCase().includes('admin');
-    const targetRole = isEmailAdmin ? 'admin' : 'student';
+    setIsLoading(true);
 
-    // Find student in store
-    const matchedStudent = store.students.find(
-      (s) => s.email.toLowerCase() === trimmedEmail.toLowerCase()
-    );
+    setTimeout(() => {
+      const searchVal = trimmedInput.toLowerCase();
+      // Look up student by email, student ID, or username
+      const matchedStudent = store.students.find(
+        (s) =>
+          s.email.toLowerCase() === searchVal ||
+          s.studentId?.toLowerCase() === searchVal ||
+          s.username?.toLowerCase() === searchVal
+      );
 
-    const inferredName = matchedStudent?.fullName || (trimmedEmail
-      ? trimmedEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
-      : targetRole === 'admin' ? 'Administrator' : 'Student');
+      const isInputAdmin = trimmedInput.toLowerCase().includes('admin');
+      const targetRole = isInputAdmin ? 'admin' : 'student';
 
-    const studentId = matchedStudent?.studentId || (targetRole === 'student' ? `STU-${Math.floor(1000 + Math.random() * 9000)}` : undefined);
+      const targetEmail = matchedStudent?.email || (trimmedInput.includes('@') ? trimmedInput : `${searchVal.replace(/\s+/g, '.')}@lumenpath.edu`);
 
-    signIn(targetRole, inferredName, trimmedEmail);
+      const inferredName = matchedStudent?.fullName || (targetEmail
+        ? targetEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+        : targetRole === 'admin' ? 'Administrator' : 'Student');
 
-    if (targetRole === 'student') {
-      // Record successful login automatically
-      store.recordStudentLogin(trimmedEmail, inferredName, studentId);
-      toast({
-        title: 'Signed In Successfully',
-        description: `Welcome back, ${inferredName}!`,
-      });
-      setLocation('/student/dashboard');
-    } else {
-      toast({
-        title: 'Admin Session Active',
-        description: `Welcome, ${inferredName}.`,
-      });
-      setLocation('/admin/dashboard');
-    }
+      const studentId = matchedStudent?.studentId || (targetRole === 'student' ? `STU-${Math.floor(1000 + Math.random() * 9000)}` : undefined);
+
+      signIn(targetRole, inferredName, targetEmail, studentId);
+      setIsLoading(false);
+
+      if (targetRole === 'student') {
+        store.recordStudentLogin(targetEmail, inferredName, studentId);
+        toast({
+          title: 'Signed In Successfully',
+          description: `Welcome back, ${inferredName}!`,
+        });
+        setLocation('/student/dashboard');
+      } else {
+        toast({
+          title: 'Admin Session Active',
+          description: `Welcome, ${inferredName}.`,
+        });
+        setLocation('/admin/dashboard');
+      }
+    }, 250);
+  };
+
+  const handleQuickDemo = () => {
+    setIdentifier('student@lumenpath.edu');
+    setPassword('student123');
+    setLoginError('');
   };
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl">
+      <div className="w-full max-w-md rounded-3xl border border-card-border bg-card p-8 shadow-xl animate-rise">
         <div className="text-center">
-          <div className="inline-block mb-3">
-            <Brand />
+          <div className="mx-auto mb-3.5 grid size-14 place-items-center rounded-2xl bg-primary text-accent shadow-md">
+            <GraduationCap className="size-7" />
           </div>
-          <h1 className="font-display text-2xl font-extrabold text-primary">
-            Welcome to LumenPath
+          <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">
+            Student Portal
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-extrabold text-primary">
+            Student Login
           </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Sign in to access your learning space, lessons, and progress
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Sign in with your student account to access lessons, quizzes, and track your progress.
           </p>
         </div>
 
-        {isSignedIn && role === 'student' && (
+        {isSignedIn && (
           <div className="mt-5 rounded-2xl border border-teal-700/20 bg-teal-50/60 p-3.5 text-xs text-teal-900">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">Active Session: {user?.fullName}</span>
-              <button
-                type="button"
-                onClick={() => setLocation('/student/dashboard')}
-                className="font-bold text-teal-800 underline hover:text-teal-950"
-              >
-                Go to Dashboard →
-              </button>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold truncate">
+                Active {role === 'admin' ? 'Admin' : 'Student'}: {user?.fullName || user?.email}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setLocation(role === 'admin' ? '/admin/dashboard' : '/student/dashboard')}
+                  className="font-bold text-teal-800 underline hover:text-teal-950"
+                >
+                  Dashboard →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="text-muted-foreground hover:text-destructive underline text-[11px]"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         )}
+
+        {/* Demo Student Quick Fill Helper */}
+        <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <GraduationCap className="size-4 text-teal-700" />
+              <span>Demo: <strong className="text-foreground">student@lumenpath.edu</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={handleQuickDemo}
+              className="rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-teal-800 hover:bg-primary/20 transition-colors"
+              data-testid="button-fill-demo-student"
+            >
+              Fill Demo
+            </button>
+          </div>
+        </div>
 
         {loginError && (
           <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
@@ -5610,16 +5667,17 @@ function SignInPage() {
 
         <form onSubmit={handleCustomSignIn} className="mt-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-primary">Email Address</label>
+            <label className="block text-xs font-bold text-primary">Email, Student ID, or Username</label>
             <input
-              type="email"
+              type="text"
               required
-              value={email}
+              value={identifier}
               onChange={(e) => {
-                setEmail(e.target.value);
+                setIdentifier(e.target.value);
                 setLoginError('');
               }}
-              placeholder="student@example.com"
+              placeholder="e.g. student@lumenpath.edu or STU-1001"
+              autoComplete="username"
               className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
               data-testid="input-signin-email"
             />
@@ -5627,36 +5685,56 @@ function SignInPage() {
 
           <div>
             <label className="block text-xs font-bold text-primary">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setLoginError('');
-              }}
-              placeholder="••••••••"
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-teal-700"
-              data-testid="input-signin-password"
-            />
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setLoginError('');
+                }}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-teal-700"
+                data-testid="input-signin-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
-            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform"
+            disabled={isLoading}
+            className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-bold text-accent shadow-[3px_3px_0_hsl(var(--accent))] hover:-translate-y-0.5 transition-transform disabled:opacity-50"
             data-testid="button-signin-submit"
           >
-            Sign in to LumenPath
+            {isLoading ? 'Signing in...' : 'Sign in as Student'}
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
-          <Link href="/sign-up" className="font-bold text-teal-700 hover:underline">
-            Create account
-          </Link>
-          <Link href="/" className="hover:underline">
-            ← Back to home
-          </Link>
+        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between">
+            <Link href="/sign-up" className="font-bold text-teal-700 hover:underline">
+              Create student account
+            </Link>
+            <Link href="/admin/login" className="font-semibold text-muted-foreground hover:text-foreground">
+              Admin console login →
+            </Link>
+          </div>
+          <div className="text-center">
+            <Link href="/" className="hover:underline">
+              ← Back to home
+            </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -5749,7 +5827,7 @@ function SignUpPage() {
         </form>
 
         <div className="mt-6 flex items-center justify-between text-xs text-muted-foreground">
-          <Link href="/sign-in" className="font-bold text-teal-700 hover:underline">
+          <Link href="/student/login" className="font-bold text-teal-700 hover:underline">
             Already have an account? Sign in
           </Link>
           <Link href="/" className="hover:underline">
@@ -5767,10 +5845,32 @@ function Router() {
     <ErrorBoundary resetKey={location}>
       <Switch>
         <Route path="/" component={HomeRedirect} />
+
+        {/* Student Auth & Login Routes */}
+        <Route path="/student/login"><SignInPage /></Route>
+        <Route path="/student/login/*?"><SignInPage /></Route>
+        <Route path="/student/sign-in"><SignInPage /></Route>
+        <Route path="/student/sign-in/*?"><SignInPage /></Route>
+        <Route path="/student/signin"><SignInPage /></Route>
+        <Route path="/student/signin/*?"><SignInPage /></Route>
+        <Route path="/student-login"><SignInPage /></Route>
+        <Route path="/student-login/*?"><SignInPage /></Route>
+        <Route path="/login"><SignInPage /></Route>
+        <Route path="/login/*?"><SignInPage /></Route>
+        <Route path="/signin"><SignInPage /></Route>
+        <Route path="/signin/*?"><SignInPage /></Route>
         <Route path="/sign-in"><SignInPage /></Route>
         <Route path="/sign-in/*?"><SignInPage /></Route>
+
+        {/* Student Registration Routes */}
+        <Route path="/student/register"><SignUpPage /></Route>
+        <Route path="/student/register/*?"><SignUpPage /></Route>
+        <Route path="/student/sign-up"><SignUpPage /></Route>
+        <Route path="/student/sign-up/*?"><SignUpPage /></Route>
         <Route path="/sign-up"><SignUpPage /></Route>
         <Route path="/sign-up/*?"><SignUpPage /></Route>
+        <Route path="/register"><SignUpPage /></Route>
+        <Route path="/register/*?"><SignUpPage /></Route>
 
         {/* Admin Login & Portal */}
         <Route path="/admin/login"><AdminLoginPage /></Route>

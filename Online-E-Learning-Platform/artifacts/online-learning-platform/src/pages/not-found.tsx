@@ -1,5 +1,5 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, ArrowLeft, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, GraduationCap, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function NotFound() {
@@ -19,16 +19,22 @@ export default function NotFound() {
 
           <div className="mt-6 space-y-2.5">
             <Link
-              href="/student/dashboard"
+              href="/student/login"
               className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-accent shadow-sm hover:opacity-95 transition-opacity"
             >
-              <LayoutDashboard className="size-4" /> Go to Student Dashboard
+              <GraduationCap className="size-4" /> Go to Student Login
             </Link>
             <Link
-              href="/admin/dashboard"
+              href="/student/dashboard"
               className="flex items-center justify-center gap-2 w-full rounded-xl border border-border bg-card py-2.5 text-sm font-bold text-primary hover:bg-muted transition-colors"
             >
-              <ShieldCheck className="size-4 text-teal-700" /> Go to Admin Dashboard
+              <LayoutDashboard className="size-4 text-teal-700" /> Go to Student Dashboard
+            </Link>
+            <Link
+              href="/admin/login"
+              className="flex items-center justify-center gap-2 w-full rounded-xl border border-border bg-card py-2.5 text-sm font-bold text-primary hover:bg-muted transition-colors"
+            >
+              <ShieldCheck className="size-4 text-teal-700" /> Go to Admin Login
             </Link>
           </div>
 
