@@ -3,7 +3,7 @@ services:
   - type: web
     name: lumenpath-elearning
     runtime: static
-    buildCommand: pnpm install && pnpm build
+    buildCommand: pnpm install && pnpm build && node copy-dist.js
     staticPublishPath: ./artifacts/online-learning-platform/dist/public
     routes:
       - type: rewrite

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "cd Online-E-Learning-Platform && pnpm install && pnpm build",
+    "build": "cd Online-E-Learning-Platform && pnpm install && pnpm build && node copy-dist.js",
+    "postbuild": "node copy-dist.js",
     "install": "cd Online-E-Learning-Platform && pnpm install",
     "start": "cd Online-E-Learning-Platform && pnpm start"
   }
