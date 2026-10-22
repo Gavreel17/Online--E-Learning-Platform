@@ -165,6 +165,7 @@ export interface QuizResultItem {
   needsGrading?: boolean;
   gradedBy?: string;
   gradedAt?: string;
+  passingScore?: number;
   totalPointsEarned?: number;
   totalPointsPossible?: number;
 }
@@ -345,6 +346,8 @@ interface PlatformStoreContextType {
     attachmentUrl?: string | null;
     attachmentSize?: string | null;
     attachmentType?: string | null;
+    questions?: QuizQuestionItem[];
+    questionCount?: number;
   }) => void;
   updateQuiz: (id: number, data: Partial<QuizItem>) => void;
   deleteQuiz: (id: number) => void;
@@ -368,8 +371,8 @@ interface PlatformStoreContextType {
   toggleQuestionPublish: (id: number) => void;
   gradeEssaySubmission: (
     resultId: number,
-    questionId: number,
-    pointsAwarded: number,
+    questionIdOrScores: number | Record<number, number>,
+    pointsAwardedOrFeedback?: number | string,
     feedback?: string,
     teacherName?: string
   ) => void;
@@ -961,8 +964,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
 
     return {
       percentage,
-      correctAnswers: correct,
-      totalQuestions: total,
+      correctAnswers: correctCount,
+      totalQuestions: qList.length,
       passed,
       passingScore,
       submissionStatus,
@@ -1138,6 +1141,8 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     attachmentUrl?: string | null;
     attachmentSize?: string | null;
     attachmentType?: string | null;
+    questions?: QuizQuestionItem[];
+    questionCount?: number;
   }) => {
     const parentSub = subjects.find((s) => s.id === Number(data.subjectId));
     const newId = Date.now();
@@ -1147,7 +1152,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       subjectName: parentSub ? parentSub.name : 'General',
       title: data.title,
       description: data.description,
-      questionCount: 1,
+      questionCount: data.questionCount || (data.questions ? data.questions.length : 1),
       passingScore: Number(data.passingScore) || 70,
       timeLimit: Number(data.timeLimit) || 15,
       attempts: 0,
@@ -1157,7 +1162,7 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
       attachmentSize: data.attachmentSize || null,
       attachmentType: data.attachmentType || null,
       status: 'published',
-      questions: [
+      questions: data.questions && data.questions.length > 0 ? data.questions : [
         {
           id: Date.now() + 1,
           number: 1,
@@ -1308,22 +1313,38 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
 
   const gradeEssaySubmission = (
     resultId: number,
-    questionId: number,
-    pointsAwarded: number,
+    questionIdOrScores: number | Record<number, number>,
+    pointsAwardedOrFeedback?: number | string,
     feedback?: string,
     teacherName?: string
   ) => {
     setResults((prev) =>
       prev.map((r) => {
         if (r.id !== resultId) return r;
+        const isScoresMap = typeof questionIdOrScores === 'object' && questionIdOrScores !== null;
+        const scoresMap = isScoresMap ? (questionIdOrScores as Record<number, number>) : null;
+        const targetQId = !isScoresMap ? Number(questionIdOrScores) : null;
+        const awarded = typeof pointsAwardedOrFeedback === 'number' ? pointsAwardedOrFeedback : 0;
+        const generalFeedback = typeof pointsAwardedOrFeedback === 'string' ? pointsAwardedOrFeedback : feedback;
+
         const details = (r.answersDetail || []).map((ans) => {
-          if (ans.questionId === questionId) {
+          if (scoresMap && ans.questionId in scoresMap) {
+            const pts = Math.max(0, Math.min(ans.pointsPossible, Number(scoresMap[ans.questionId])));
             return {
               ...ans,
-              pointsAwarded: Math.max(0, Math.min(ans.pointsPossible, Number(pointsAwarded))),
-              isCorrect: Number(pointsAwarded) >= ans.pointsPossible * 0.7,
+              pointsAwarded: pts,
+              isCorrect: pts >= ans.pointsPossible * 0.7,
               status: 'graded' as const,
-              teacherFeedback: feedback || ans.teacherFeedback,
+              teacherFeedback: generalFeedback || ans.teacherFeedback,
+            };
+          }
+          if (targetQId != null && ans.questionId === targetQId) {
+            return {
+              ...ans,
+              pointsAwarded: Math.max(0, Math.min(ans.pointsPossible, Number(awarded))),
+              isCorrect: Number(awarded) >= ans.pointsPossible * 0.7,
+              status: 'graded' as const,
+              teacherFeedback: generalFeedback || ans.teacherFeedback,
             };
           }
           return ans;

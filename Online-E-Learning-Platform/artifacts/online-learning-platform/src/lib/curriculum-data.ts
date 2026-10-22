@@ -1784,7 +1784,20 @@ export function isQuestionUsedInQuiz(quizzes: QuizItem[], questionId: number): {
 /**
  * Filter lessons belonging to a specific subject
  */
-export function getSubjectLessons<T extends { subjectId: number }>(lessons: T[], subjectId: number): T[] {
-  return lessons.filter((l) => l.subjectId === Number(subjectId));
+export function getSubjectLessons<T extends { subjectId: number; published?: boolean; title?: string; description?: string }>(
+  lessons: T[],
+  subjectId: number,
+  options?: { onlyPublished?: boolean; search?: string }
+): T[] {
+  return lessons.filter((l) => {
+    if (l.subjectId !== Number(subjectId)) return false;
+    if (options?.onlyPublished && l.published === false) return false;
+    if (options?.search) {
+      const term = options.search.toLowerCase();
+      const match = (l.title && l.title.toLowerCase().includes(term)) || (l.description && l.description.toLowerCase().includes(term));
+      if (!match) return false;
+    }
+    return true;
+  });
 }
 

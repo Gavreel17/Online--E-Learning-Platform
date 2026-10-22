@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AuthProvider, useAuth, DEFAULT_STUDENT, DEFAULT_ADMIN } from '@/lib/auth-context';
+import { AuthProvider, useAuth, DEFAULT_STUDENT, DEFAULT_ADMIN, DEFAULT_TEACHER } from '@/lib/auth-context';
 import {
   PlatformStoreProvider,
   usePlatformStore,
@@ -11,6 +11,9 @@ import {
   type QuestionStatus,
   type QuestionBankChoice,
   type QuizQuestionItem,
+  type LessonItem,
+  type SubjectItem,
+  type TeacherApplicationRecord,
 } from '@/lib/platform-store';
 import { isQuestionUsedInQuiz, questionBankItemToQuizQuestion } from '@/lib/curriculum-data';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +30,7 @@ import {
   ShieldCheck, Sparkles, Target, Trash2, Trophy, UserRound, Users, X, Zap,
   UploadCloud, FileText, FileCode, FileArchive, FileSpreadsheet, Paperclip, File,
   FileCheck, Eye, EyeOff, Lock, KeyRound, ShieldAlert, ArrowDownToLine, Camera, Image as ImageIcon, User,
-  AlertTriangle, Play, Video, Layers, FolderOpen,
+  AlertTriangle, Play, Video, Layers, FolderOpen, Compass,
 } from 'lucide-react';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
 import {
@@ -4713,11 +4716,11 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
         <div className="overflow-x-auto rounded-2xl border border-card-border bg-card">
           <div className="min-w-[720px]">
             <div className="grid grid-cols-[1.5fr_1fr_120px_130px_70px] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              <span>{kind === 'subjects' ? 'Subject' : kind === 'lessons' ? 'Lesson & Materials' : kind === 'quizzes' ? 'Quiz & Attachments' : kind === 'questions' ? 'Question' : 'Quiz & Submission'}</span>
+              <span>{kind === 'subjects' ? 'Subject' : kind === 'lessons' ? 'Lesson & Materials' : kind === 'quizzes' ? 'Quiz & Attachments' : (kind as string) === 'questions' ? 'Question' : 'Quiz & Submission'}</span>
               <span>{kind === 'subjects' ? 'Code' : 'Subject / Type'}</span>
-              <span>{kind === 'results' ? 'Score' : kind === 'quizzes' ? 'Questions & Limit' : 'Metrics'}</span>
+              <span>{(kind as string) === 'results' ? 'Score' : kind === 'quizzes' ? 'Questions & Limit' : 'Metrics'}</span>
               <span>Status</span>
-              <span className="text-right">Actions</span>
+              <span>Actions</span>
             </div>
 
             {rows.map((x: any) => (
@@ -4888,10 +4891,10 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                     <button
                       onClick={() => {
                         if (window.confirm(`Delete this ${kind.slice(0, -1)}?`)) {
-                          if (kind === 'subjects') store.deleteSubject(x.id);
-                          if (kind === 'lessons') store.deleteLesson(x.id);
-                          if (kind === 'quizzes') store.deleteQuiz(x.id);
-                          if (kind === 'questions') store.deleteQuestion(x.id);
+                          if ((kind as string) === 'subjects') store.deleteSubject(x.id);
+                          if ((kind as string) === 'lessons') store.deleteLesson(x.id);
+                          if ((kind as string) === 'quizzes') store.deleteQuiz(x.id);
+                          if ((kind as string) === 'questions') store.deleteQuestion(x.id);
                           toast({ title: 'Deleted', description: 'Item removed successfully.' });
                         }
                       }}
