@@ -3242,6 +3242,25 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
   });
   const [editLessonFile, setEditLessonFile] = useState<{ name: string; url: string; size: string; type: string } | null>(null);
 
+  // Edit subject state
+  const [editingSubject, setEditingSubject] = useState<any | null>(null);
+  const [editSubjectForm, setEditSubjectForm] = useState({ name: '', code: '', description: '', instructor: '', department: '' });
+
+  const handleEditSubjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSubject || !editSubjectForm.name) return;
+    store.updateSubject(editingSubject.id, {
+      name: editSubjectForm.name.trim(),
+      code: editSubjectForm.code.trim(),
+      description: editSubjectForm.description.trim(),
+      instructor: editSubjectForm.instructor.trim() || undefined,
+      department: editSubjectForm.department.trim() || undefined,
+    });
+    toast({ title: 'Subject Updated', description: `"${editSubjectForm.name}" has been updated.` });
+    setEditingSubject(null);
+  };
+
+
   const handleEditLessonSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLesson || !editLessonForm.title) return;
@@ -4977,6 +4996,25 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                 </div>
 
                 <div className="flex justify-end items-center gap-1">
+                  {kind === 'subjects' && (
+                    <button
+                      onClick={() => {
+                        setEditingSubject(x);
+                        setEditSubjectForm({
+                          name: x.name,
+                          code: x.code,
+                          description: x.description || '',
+                          instructor: x.instructor || '',
+                          department: x.department || '',
+                        });
+                      }}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      data-testid={`button-edit-subject-${x.id}`}
+                      title="Edit subject"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                  )}
                   {kind === 'lessons' && (
                     <button
                       onClick={() => {
@@ -5025,20 +5063,17 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
                       <Pencil className="size-4" />
                     </button>
                   )}
-                  {kind !== 'results' && (
+                  {(kind as string) === 'questions' && (
                     <button
                       onClick={() => {
-                        if (window.confirm(`Delete this ${kind.slice(0, -1)}?`)) {
-                          if ((kind as string) === 'subjects') store.deleteSubject(x.id);
-                          if ((kind as string) === 'lessons') store.deleteLesson(x.id);
-                          if ((kind as string) === 'quizzes') store.deleteQuiz(x.id);
-                          if ((kind as string) === 'questions') store.deleteQuestion(x.id);
-                          toast({ title: 'Deleted', description: 'Item removed successfully.' });
+                        if (window.confirm(`Delete this question?`)) {
+                          store.deleteQuestion(x.id);
+                          toast({ title: 'Deleted', description: 'Question removed successfully.' });
                         }
                       }}
                       className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                      data-testid={`button-delete-${kind}-${x.id}`}
-                      title={`Delete ${kind.slice(0, -1)}`}
+                      data-testid={`button-delete-questions-${x.id}`}
+                      title="Delete question"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -5049,6 +5084,80 @@ function AdminTablePage({ kind }: { kind: 'students' | 'subjects' | 'lessons' | 
           </div>
         </div>
       )}
+      {/* Edit Subject Modal */}
+      {editingSubject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setEditingSubject(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-card-border bg-card p-6 shadow-2xl animate-rise" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-display text-lg font-bold">Edit Subject</h3>
+              <button onClick={() => setEditingSubject(null)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubjectSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-foreground">Subject Name</label>
+                  <input
+                    required
+                    value={editSubjectForm.name}
+                    onChange={(e) => setEditSubjectForm({ ...editSubjectForm, name: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    placeholder="e.g. Database Management"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Subject Code</label>
+                  <input
+                    required
+                    value={editSubjectForm.code}
+                    onChange={(e) => setEditSubjectForm({ ...editSubjectForm, code: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    placeholder="e.g. IT301"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Instructor</label>
+                  <input
+                    value={editSubjectForm.instructor}
+                    onChange={(e) => setEditSubjectForm({ ...editSubjectForm, instructor: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    placeholder="e.g. Prof. Santos"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-foreground">Department</label>
+                  <input
+                    value={editSubjectForm.department}
+                    onChange={(e) => setEditSubjectForm({ ...editSubjectForm, department: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50"
+                    placeholder="e.g. IT Department"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-bold text-foreground">Description</label>
+                  <textarea
+                    rows={3}
+                    value={editSubjectForm.description}
+                    onChange={(e) => setEditSubjectForm({ ...editSubjectForm, description: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-accent/50 resize-none"
+                    placeholder="Short subject description..."
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditingSubject(null)} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" className="rounded-xl bg-primary px-5 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 transition-colors">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Lesson Modal */}
       {editingLesson && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setEditingLesson(null)}>
