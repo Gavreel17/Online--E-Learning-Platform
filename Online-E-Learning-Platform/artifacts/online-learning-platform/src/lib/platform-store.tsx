@@ -228,6 +228,98 @@ export interface TeacherApplicationRecord {
   reviewedBy?: string | null;
 }
 
+export type AssignmentSubmissionType =
+  | 'video'
+  | 'presentation'
+  | 'pdf'
+  | 'document'
+  | 'image'
+  | 'text'
+  | 'code'
+  | 'link';
+
+export interface AssignmentItem {
+  id: string;
+  title: string;
+  description: string;
+  subjectId: number;
+  subjectName: string;
+  relatedLessonId?: number | null;
+  relatedLessonTitle?: string | null;
+  teacherId: string;
+  teacherName: string;
+  assignedClassOrStudents?: string;
+  referenceMaterials?: { name: string; url: string; size?: string; type?: string }[];
+  startDateTime: string;
+  dueDateTime: string;
+  maxScore: number;
+  acceptedSubmissionTypes: AssignmentSubmissionType[];
+  maxFileSizeMB: number;
+  allowLateSubmissions: boolean;
+  allowResubmission: boolean;
+  status: 'draft' | 'published' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssignmentSubmissionItem {
+  id: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  subjectId: number;
+  subjectName: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  submissionType: AssignmentSubmissionType;
+  file?: { name: string; url: string; size?: string; type?: string } | null;
+  textAnswer?: string;
+  externalLink?: string;
+  submittedAt: string;
+  isLate: boolean;
+  status: 'submitted' | 'graded' | 'returned_for_revision';
+  score?: number | null;
+  maxScore: number;
+  feedback?: string;
+  gradedBy?: string;
+  gradedAt?: string;
+  version?: number;
+  history?: {
+    submittedAt: string;
+    submissionType: AssignmentSubmissionType;
+    fileName?: string;
+    fileUrl?: string;
+    textAnswer?: string;
+    feedback?: string;
+  }[];
+}
+
+export type AssignmentAuditEventType =
+  | 'assignment_created'
+  | 'assignment_published'
+  | 'assignment_updated'
+  | 'assignment_closed'
+  | 'submission_received'
+  | 'resubmission_received'
+  | 'assignment_graded'
+  | 'feedback_added'
+  | 'returned_for_revision';
+
+export interface AssignmentAuditEvent {
+  id: string;
+  eventType: AssignmentAuditEventType;
+  userId: string;
+  userName: string;
+  userRole: 'teacher' | 'student' | 'admin';
+  assignmentId: string;
+  assignmentTitle: string;
+  submissionId?: string;
+  subjectId?: number;
+  subjectName?: string;
+  timestamp: string;
+  details: string;
+}
+
 export interface ActivityItem {
   id: number;
   title: string;
@@ -245,6 +337,30 @@ interface PlatformStoreContextType {
   loginActivities: LoginActivityRecord[];
   recentActivity: ActivityItem[];
   teacherApplications: TeacherApplicationRecord[];
+  assignments: AssignmentItem[];
+  assignmentSubmissions: AssignmentSubmissionItem[];
+  assignmentAuditLogs: AssignmentAuditEvent[];
+
+  // Assignment Actions
+  createAssignment: (data: Omit<AssignmentItem, 'id' | 'createdAt' | 'updatedAt'>) => AssignmentItem;
+  updateAssignment: (id: string, data: Partial<AssignmentItem>) => void;
+  publishAssignment: (id: string) => void;
+  deleteAssignment: (id: string) => void;
+  submitAssignment: (data: {
+    assignmentId: string;
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    submissionType: AssignmentSubmissionType;
+    file?: { name: string; url: string; size?: string; type?: string } | null;
+    textAnswer?: string;
+    externalLink?: string;
+  }) => { success: boolean; message: string };
+  gradeAssignmentSubmission: (
+    submissionId: string,
+    data: { score: number; feedback: string; status?: 'graded' | 'returned_for_revision'; teacherName: string }
+  ) => void;
+  returnSubmissionForRevision: (submissionId: string, data: { feedback: string; teacherName: string }) => void;
 
   // Teacher Application Actions
   addTeacherApplication: (data: {
@@ -459,6 +575,299 @@ try {
   // ignore
 }
 
+export const DEFAULT_ASSIGNMENTS: AssignmentItem[] = [
+  {
+    id: 'asgn_1',
+    title: 'Enterprise Relational Schema & Normalization Design',
+    description: 'Design a comprehensive relational database schema in Third Normal Form (3NF) for a multi-tenant enterprise logistics platform. Provide entity-relationship diagrams (ERD), full SQL DDL script definitions with primary and foreign key constraints, or a recorded video explanation walking through your normalization decisions.',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    relatedLessonId: 1,
+    relatedLessonTitle: 'Introduction to Relational Databases',
+    teacherId: 'TCH-2024-002',
+    teacherName: 'Prof. Sarah Jenkins',
+    assignedClassOrStudents: 'All Enrolled Students',
+    referenceMaterials: [
+      { name: 'Relational_Schema_Specification_v3.pdf', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', size: '2.1 MB', type: 'application/pdf' },
+      { name: 'Sample_Logistics_ERD_Template.pptx', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', size: '3.4 MB', type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+    ],
+    startDateTime: '2026-10-18T08:00',
+    dueDateTime: '2026-10-27T23:59',
+    maxScore: 100,
+    acceptedSubmissionTypes: ['pdf', 'presentation', 'video'],
+    maxFileSizeMB: 100,
+    allowLateSubmissions: true,
+    allowResubmission: true,
+    status: 'published',
+    createdAt: 'Oct 18, 2026, 08:30 AM',
+    updatedAt: 'Oct 18, 2026, 08:30 AM',
+  },
+  {
+    id: 'asgn_2',
+    title: 'Interactive E-Learning Dashboard UI Prototype',
+    description: 'Construct a responsive, accessible learning dashboard using modern semantic HTML5, CSS Grid/Flexbox, and dynamic JavaScript components. Focus on interactive filters and mobile viewports. Submit your documented source code archive (ZIP), architecture PDF, or a video screen recording demonstrating your responsive layout.',
+    subjectId: 2,
+    subjectName: 'Web Development',
+    relatedLessonId: 9,
+    relatedLessonTitle: 'HTML5 Semantic Structure & Foundations',
+    teacherId: 'tch_seed_2',
+    teacherName: 'Dr. Eleanor Davies',
+    assignedClassOrStudents: 'BSIT 3-A & Web Cohort',
+    referenceMaterials: [
+      { name: 'Design_System_Guidelines.pdf', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', size: '1.9 MB', type: 'application/pdf' },
+    ],
+    startDateTime: '2026-10-19T09:00',
+    dueDateTime: '2026-10-25T23:59',
+    maxScore: 100,
+    acceptedSubmissionTypes: ['code', 'pdf', 'video'],
+    maxFileSizeMB: 100,
+    allowLateSubmissions: true,
+    allowResubmission: true,
+    status: 'published',
+    createdAt: 'Oct 19, 2026, 09:15 AM',
+    updatedAt: 'Oct 19, 2026, 09:15 AM',
+  },
+  {
+    id: 'asgn_3',
+    title: 'Dynamic Data Structures & Algorithm Optimization',
+    description: 'Implement an AVL self-balancing binary search tree with rotation handling (LL, RR, LR, RL) in your chosen language. Benchmark insertion and search speed against standard binary trees. Upload your source code in a ZIP archive, or submit a technical video demonstration of your test cases.',
+    subjectId: 3,
+    subjectName: 'Programming',
+    relatedLessonId: 15,
+    relatedLessonTitle: 'Variables, Types, and Expressions',
+    teacherId: 'TCH-2024-001',
+    teacherName: 'Dr. Robert Vance',
+    assignedClassOrStudents: 'CS Algorithms Class',
+    referenceMaterials: [
+      { name: 'AVL_Tree_Rubric_and_Test_Vectors.pdf', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', size: '1.5 MB', type: 'application/pdf' },
+    ],
+    startDateTime: '2026-10-17T10:00',
+    dueDateTime: '2026-10-29T23:59',
+    maxScore: 100,
+    acceptedSubmissionTypes: ['code', 'video', 'text'],
+    maxFileSizeMB: 50,
+    allowLateSubmissions: true,
+    allowResubmission: true,
+    status: 'published',
+    createdAt: 'Oct 17, 2026, 10:00 AM',
+    updatedAt: 'Oct 17, 2026, 10:00 AM',
+  },
+  {
+    id: 'asgn_4',
+    title: 'Microprocessor Architecture & Cache Coherency Analysis',
+    description: 'Investigate multi-core cache hierarchy performance under intensive spatial and temporal locality workloads. Submit a PowerPoint presentation, technical PDF summary, or system block diagrams depicting cache invalidation protocols.',
+    subjectId: 4,
+    subjectName: 'Computer Systems',
+    relatedLessonId: 21,
+    relatedLessonTitle: 'Computer Hardware Architecture & Von Neumann Model',
+    teacherId: 'TCH-2024-003',
+    teacherName: 'Engr. Marcus Sterling',
+    assignedClassOrStudents: 'Hardware Engineering Cohort',
+    referenceMaterials: [
+      { name: 'MESI_Protocol_Reference.pdf', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', size: '2.8 MB', type: 'application/pdf' },
+    ],
+    startDateTime: '2026-10-16T08:00',
+    dueDateTime: '2026-10-31T23:59',
+    maxScore: 100,
+    acceptedSubmissionTypes: ['pdf', 'presentation', 'image', 'video'],
+    maxFileSizeMB: 50,
+    allowLateSubmissions: false,
+    allowResubmission: true,
+    status: 'published',
+    createdAt: 'Oct 16, 2026, 08:00 AM',
+    updatedAt: 'Oct 16, 2026, 08:00 AM',
+  },
+  {
+    id: 'asgn_5',
+    title: 'Advanced SQL Execution Planning & Index Tuning',
+    description: 'Examine query plans with EXPLAIN ANALYZE on high-volume tables. Create composite and partial indexes to eliminate sequential scans on multi-million row customer records.',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    relatedLessonId: 3,
+    relatedLessonTitle: 'SQL Fundamentals: Queries & Filtering',
+    teacherId: 'TCH-2024-002',
+    teacherName: 'Prof. Sarah Jenkins',
+    assignedClassOrStudents: 'All Enrolled Students',
+    referenceMaterials: [],
+    startDateTime: '2026-10-25T08:00',
+    dueDateTime: '2026-11-05T23:59',
+    maxScore: 100,
+    acceptedSubmissionTypes: ['pdf', 'text', 'code'],
+    maxFileSizeMB: 25,
+    allowLateSubmissions: false,
+    allowResubmission: true,
+    status: 'draft',
+    createdAt: 'Oct 21, 2026, 11:30 AM',
+    updatedAt: 'Oct 21, 2026, 11:30 AM',
+  },
+];
+
+export const DEFAULT_ASSIGNMENT_SUBMISSIONS: AssignmentSubmissionItem[] = [
+  {
+    id: 'sub_1',
+    assignmentId: 'asgn_1',
+    assignmentTitle: 'Enterprise Relational Schema & Normalization Design',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    studentId: 'STU-1001',
+    studentName: 'Alex Morgan',
+    studentEmail: 'alex.morgan@lumenpath.edu',
+    submissionType: 'presentation',
+    file: {
+      name: 'Alex_Morgan_Logistics_ERD_Presentation.pptx',
+      url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      size: '5.8 MB',
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    },
+    textAnswer: 'Attached presentation contains the complete 3NF normalization justification and ER diagrams.',
+    submittedAt: 'Oct 20, 2026, 02:15 PM',
+    isLate: false,
+    status: 'graded',
+    score: 95,
+    maxScore: 100,
+    feedback: 'Outstanding normalization breakdown and clearly structured relational keys. Great visual presentation slides!',
+    gradedBy: 'Prof. Sarah Jenkins',
+    gradedAt: 'Oct 21, 2026, 09:30 AM',
+    version: 1,
+  },
+  {
+    id: 'sub_2',
+    assignmentId: 'asgn_2',
+    assignmentTitle: 'Interactive E-Learning Dashboard UI Prototype',
+    subjectId: 2,
+    subjectName: 'Web Development',
+    studentId: 'STU-1002',
+    studentName: 'Jordan Lee',
+    studentEmail: 'jordan.lee@lumenpath.edu',
+    submissionType: 'video',
+    file: {
+      name: 'Jordan_Lee_WebDev_Demo.mp4',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      size: '18.4 MB',
+      type: 'video/mp4',
+    },
+    textAnswer: 'Video walkthrough demonstrating mobile responsiveness, accessible keyboard navigation, and custom CSS theme switches.',
+    submittedAt: 'Oct 21, 2026, 04:45 PM',
+    isLate: false,
+    status: 'submitted',
+    score: null,
+    maxScore: 100,
+    version: 1,
+  },
+  {
+    id: 'sub_3',
+    assignmentId: 'asgn_3',
+    assignmentTitle: 'Dynamic Data Structures & Algorithm Optimization',
+    subjectId: 3,
+    subjectName: 'Programming',
+    studentId: 'STU-1003',
+    studentName: 'Taylor Swift',
+    studentEmail: 'taylor@lumenpath.edu',
+    submissionType: 'code',
+    file: {
+      name: 'Taylor_AVL_Tree_Solution.zip',
+      url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      size: '1.2 MB',
+      type: 'application/zip',
+    },
+    textAnswer: 'Implemented AVL balancing routines and benchmarked with 100k random integer insertions.',
+    submittedAt: 'Oct 19, 2026, 10:10 AM',
+    isLate: false,
+    status: 'returned_for_revision',
+    score: null,
+    maxScore: 100,
+    feedback: 'Please implement recursive re-balancing on delete operations as required by rubric section 3.2, then resubmit.',
+    gradedBy: 'Dr. Robert Vance',
+    gradedAt: 'Oct 20, 2026, 03:00 PM',
+    version: 1,
+  },
+];
+
+export const DEFAULT_ASSIGNMENT_AUDIT_LOGS: AssignmentAuditEvent[] = [
+  {
+    id: 'aud_1',
+    eventType: 'assignment_graded',
+    userId: 'TCH-2024-002',
+    userName: 'Prof. Sarah Jenkins',
+    userRole: 'teacher',
+    assignmentId: 'asgn_1',
+    assignmentTitle: 'Enterprise Relational Schema & Normalization Design',
+    submissionId: 'sub_1',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    timestamp: 'Oct 21, 2026, 09:30 AM',
+    details: 'Prof. Sarah Jenkins graded Alex Morgan\'s assignment "Enterprise Relational Schema & Normalization Design" (Score: 95/100).',
+  },
+  {
+    id: 'aud_2',
+    eventType: 'submission_received',
+    userId: 'STU-1002',
+    userName: 'Jordan Lee',
+    userRole: 'student',
+    assignmentId: 'asgn_2',
+    assignmentTitle: 'Interactive E-Learning Dashboard UI Prototype',
+    submissionId: 'sub_2',
+    subjectId: 2,
+    subjectName: 'Web Development',
+    timestamp: 'Oct 21, 2026, 04:45 PM',
+    details: 'Student Jordan Lee submitted a video demonstration for "Interactive E-Learning Dashboard UI Prototype" in Web Development.',
+  },
+  {
+    id: 'aud_3',
+    eventType: 'returned_for_revision',
+    userId: 'TCH-2024-001',
+    userName: 'Dr. Robert Vance',
+    userRole: 'teacher',
+    assignmentId: 'asgn_3',
+    assignmentTitle: 'Dynamic Data Structures & Algorithm Optimization',
+    submissionId: 'sub_3',
+    subjectId: 3,
+    subjectName: 'Programming',
+    timestamp: 'Oct 20, 2026, 03:00 PM',
+    details: 'Dr. Robert Vance returned assignment "Dynamic Data Structures & Algorithm Optimization" to Taylor Swift for revision.',
+  },
+  {
+    id: 'aud_4',
+    eventType: 'submission_received',
+    userId: 'STU-1001',
+    userName: 'Alex Morgan',
+    userRole: 'student',
+    assignmentId: 'asgn_1',
+    assignmentTitle: 'Enterprise Relational Schema & Normalization Design',
+    submissionId: 'sub_1',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    timestamp: 'Oct 20, 2026, 02:15 PM',
+    details: 'Student Alex Morgan submitted a presentation for "Enterprise Relational Schema & Normalization Design" in Database Management.',
+  },
+  {
+    id: 'aud_5',
+    eventType: 'assignment_published',
+    userId: 'TCH-2024-002',
+    userName: 'Prof. Sarah Jenkins',
+    userRole: 'teacher',
+    assignmentId: 'asgn_1',
+    assignmentTitle: 'Enterprise Relational Schema & Normalization Design',
+    subjectId: 1,
+    subjectName: 'Database Management',
+    timestamp: 'Oct 18, 2026, 08:30 AM',
+    details: 'Prof. Sarah Jenkins published assignment "Enterprise Relational Schema & Normalization Design" to students.',
+  },
+];
+
+const ASSIGNMENTS_VERSION_KEY = 'lumenpath_assignments_v1';
+try {
+  const version = localStorage.getItem(ASSIGNMENTS_VERSION_KEY);
+  if (!version) {
+    localStorage.setItem(LS_PREFIX + 'assignments_v1', JSON.stringify(DEFAULT_ASSIGNMENTS));
+    localStorage.setItem(LS_PREFIX + 'assignment_submissions_v1', JSON.stringify(DEFAULT_ASSIGNMENT_SUBMISSIONS));
+    localStorage.setItem(LS_PREFIX + 'assignment_audit_logs_v1', JSON.stringify(DEFAULT_ASSIGNMENT_AUDIT_LOGS));
+    localStorage.setItem(ASSIGNMENTS_VERSION_KEY, '1');
+  }
+} catch {
+  // ignore
+}
+
 export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<SubjectItem[]>(() => {
     const stored = getInitial<SubjectItem[]>('subjects', DEFAULT_SUBJECTS);
@@ -599,6 +1008,19 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
     ])
   );
 
+  const [assignments, setAssignments] = useState<AssignmentItem[]>(() => {
+    const stored = getInitial<AssignmentItem[]>('assignments_v1', DEFAULT_ASSIGNMENTS);
+    return stored && stored.length > 0 ? stored : DEFAULT_ASSIGNMENTS;
+  });
+  const [assignmentSubmissions, setAssignmentSubmissions] = useState<AssignmentSubmissionItem[]>(() => {
+    const stored = getInitial<AssignmentSubmissionItem[]>('assignment_submissions_v1', DEFAULT_ASSIGNMENT_SUBMISSIONS);
+    return stored && stored.length > 0 ? stored : DEFAULT_ASSIGNMENT_SUBMISSIONS;
+  });
+  const [assignmentAuditLogs, setAssignmentAuditLogs] = useState<AssignmentAuditEvent[]>(() => {
+    const stored = getInitial<AssignmentAuditEvent[]>('assignment_audit_logs_v1', DEFAULT_ASSIGNMENT_AUDIT_LOGS);
+    return stored && stored.length > 0 ? stored : DEFAULT_ASSIGNMENT_AUDIT_LOGS;
+  });
+
   // Sync to storage
   useEffect(() => setStorage('subjects', subjects), [subjects]);
   useEffect(() => setStorage('lessons', lessons), [lessons]);
@@ -610,6 +1032,9 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => setStorage('activity', recentActivity), [recentActivity]);
   useEffect(() => setStorage('active_sessions', activeSessions), [activeSessions]);
   useEffect(() => setStorage('teacher_applications', teacherApplications), [teacherApplications]);
+  useEffect(() => setStorage('assignments_v1', assignments), [assignments]);
+  useEffect(() => setStorage('assignment_submissions_v1', assignmentSubmissions), [assignmentSubmissions]);
+  useEffect(() => setStorage('assignment_audit_logs_v1', assignmentAuditLogs), [assignmentAuditLogs]);
 
   // Sync with Supabase on mount
   useEffect(() => {
@@ -693,6 +1118,356 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
 
   const addActivity = (title: string, message: string) => {
     setRecentActivity((prev) => [{ id: Date.now(), title, message }, ...prev.slice(0, 9)]);
+  };
+
+  const logAssignmentEvent = (
+    eventType: AssignmentAuditEventType,
+    params: {
+      userId: string;
+      userName: string;
+      userRole: 'teacher' | 'student' | 'admin';
+      assignmentId: string;
+      assignmentTitle: string;
+      submissionId?: string;
+      subjectId?: number;
+      subjectName?: string;
+      details: string;
+    }
+  ) => {
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+    const event: AssignmentAuditEvent = {
+      id: `aud_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      eventType,
+      userId: params.userId,
+      userName: params.userName,
+      userRole: params.userRole,
+      assignmentId: params.assignmentId,
+      assignmentTitle: params.assignmentTitle,
+      submissionId: params.submissionId,
+      subjectId: params.subjectId,
+      subjectName: params.subjectName,
+      timestamp: formatted,
+      details: params.details,
+    };
+    setAssignmentAuditLogs((prev) => [event, ...prev]);
+
+    // Also push to live platform-wide recentActivity so Admin and other dashboards reflect it live!
+    addActivity(
+      eventType === 'assignment_created' ? 'Assignment Created' :
+      eventType === 'assignment_published' ? 'Assignment Published' :
+      eventType === 'assignment_updated' ? 'Assignment Updated' :
+      eventType === 'assignment_closed' ? 'Assignment Closed' :
+      eventType === 'submission_received' ? 'Student Submission Received' :
+      eventType === 'resubmission_received' ? 'Student Resubmission Received' :
+      eventType === 'assignment_graded' ? 'Assignment Graded' :
+      eventType === 'returned_for_revision' ? 'Assignment Returned for Revision' : 'Assignment Activity',
+      params.details
+    );
+
+    // Optimistically sync event to supabase
+    try {
+      supabase.from('assignment_audit_logs').insert([{
+        event_type: eventType,
+        user_id: params.userId,
+        user_name: params.userName,
+        user_role: params.userRole,
+        assignment_id: params.assignmentId,
+        assignment_title: params.assignmentTitle,
+        submission_id: params.submissionId || null,
+        subject_id: params.subjectId || null,
+        subject_name: params.subjectName || null,
+        details: params.details,
+        created_at: now.toISOString(),
+      }]).then(() => {});
+    } catch {
+      // ignore
+    }
+  };
+
+  const createAssignment = (data: Omit<AssignmentItem, 'id' | 'createdAt' | 'updatedAt'>): AssignmentItem => {
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+    const newAssignment: AssignmentItem = {
+      ...data,
+      id: `asgn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: formatted,
+      updatedAt: formatted,
+    };
+
+    setAssignments((prev) => [newAssignment, ...prev]);
+
+    logAssignmentEvent(
+      data.status === 'published' ? 'assignment_published' : 'assignment_created',
+      {
+        userId: data.teacherId,
+        userName: data.teacherName,
+        userRole: 'teacher',
+        assignmentId: newAssignment.id,
+        assignmentTitle: newAssignment.title,
+        subjectId: data.subjectId,
+        subjectName: data.subjectName,
+        details: `${data.teacherName} ${data.status === 'published' ? 'published' : 'created'} assignment "${newAssignment.title}" for ${data.subjectName}.`,
+      }
+    );
+
+    try {
+      supabase.from('assignments').insert([{
+        id: newAssignment.id,
+        title: newAssignment.title,
+        description: newAssignment.description,
+        subject_id: newAssignment.subjectId,
+        subject_name: newAssignment.subjectName,
+        teacher_id: newAssignment.teacherId,
+        teacher_name: newAssignment.teacherName,
+        max_score: newAssignment.maxScore,
+        status: newAssignment.status,
+        due_date: newAssignment.dueDateTime,
+      }]).then(() => {});
+    } catch {
+      // ignore
+    }
+
+    return newAssignment;
+  };
+
+  const updateAssignment = (id: string, data: Partial<AssignmentItem>) => {
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    let updatedTarget: AssignmentItem | null = null;
+    setAssignments((prev) =>
+      prev.map((a) => {
+        if (a.id === id) {
+          updatedTarget = { ...a, ...data, updatedAt: formatted };
+          return updatedTarget;
+        }
+        return a;
+      })
+    );
+
+    if (updatedTarget) {
+      logAssignmentEvent('assignment_updated', {
+        userId: (updatedTarget as AssignmentItem).teacherId,
+        userName: (updatedTarget as AssignmentItem).teacherName,
+        userRole: 'teacher',
+        assignmentId: (updatedTarget as AssignmentItem).id,
+        assignmentTitle: (updatedTarget as AssignmentItem).title,
+        subjectId: (updatedTarget as AssignmentItem).subjectId,
+        subjectName: (updatedTarget as AssignmentItem).subjectName,
+        details: `${(updatedTarget as AssignmentItem).teacherName} updated assignment "${(updatedTarget as AssignmentItem).title}".`,
+      });
+    }
+  };
+
+  const publishAssignment = (id: string) => {
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    let publishedTarget: AssignmentItem | null = null;
+    setAssignments((prev) =>
+      prev.map((a) => {
+        if (a.id === id) {
+          publishedTarget = { ...a, status: 'published', updatedAt: formatted };
+          return publishedTarget;
+        }
+        return a;
+      })
+    );
+
+    if (publishedTarget) {
+      logAssignmentEvent('assignment_published', {
+        userId: (publishedTarget as AssignmentItem).teacherId,
+        userName: (publishedTarget as AssignmentItem).teacherName,
+        userRole: 'teacher',
+        assignmentId: (publishedTarget as AssignmentItem).id,
+        assignmentTitle: (publishedTarget as AssignmentItem).title,
+        subjectId: (publishedTarget as AssignmentItem).subjectId,
+        subjectName: (publishedTarget as AssignmentItem).subjectName,
+        details: `${(publishedTarget as AssignmentItem).teacherName} published assignment "${(publishedTarget as AssignmentItem).title}" to students.`,
+      });
+    }
+  };
+
+  const deleteAssignment = (id: string) => {
+    const target = assignments.find((a) => a.id === id);
+    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    setAssignmentSubmissions((prev) => prev.filter((s) => s.assignmentId !== id));
+
+    if (target) {
+      logAssignmentEvent('assignment_closed', {
+        userId: target.teacherId,
+        userName: target.teacherName,
+        userRole: 'teacher',
+        assignmentId: target.id,
+        assignmentTitle: target.title,
+        subjectId: target.subjectId,
+        subjectName: target.subjectName,
+        details: `${target.teacherName} removed assignment "${target.title}".`,
+      });
+    }
+  };
+
+  const submitAssignment = (data: {
+    assignmentId: string;
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    submissionType: AssignmentSubmissionType;
+    file?: { name: string; url: string; size?: string; type?: string } | null;
+    textAnswer?: string;
+    externalLink?: string;
+  }): { success: boolean; message: string } => {
+    const targetAssignment = assignments.find((a) => a.id === data.assignmentId);
+    if (!targetAssignment) {
+      return { success: false, message: 'Assignment not found.' };
+    }
+
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    // Check deadline
+    let isLate = false;
+    try {
+      const due = new Date(targetAssignment.dueDateTime);
+      if (!isNaN(due.getTime()) && now.getTime() > due.getTime()) {
+        isLate = true;
+        if (!targetAssignment.allowLateSubmissions) {
+          return { success: false, message: 'Submissions are closed for this assignment. Late submissions are not permitted.' };
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Check existing submission
+    const existing = assignmentSubmissions.find(
+      (s) => s.assignmentId === data.assignmentId && (s.studentEmail === data.studentEmail || s.studentId === data.studentId)
+    );
+
+    if (existing && !targetAssignment.allowResubmission && existing.status !== 'returned_for_revision') {
+      return { success: false, message: 'Resubmissions are not permitted for this assignment.' };
+    }
+
+    const submissionId = existing ? existing.id : `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const newVersion = (existing?.version || 1) + (existing ? 1 : 0);
+
+    const historyEntry = existing ? {
+      submittedAt: existing.submittedAt,
+      submissionType: existing.submissionType,
+      fileName: existing.file?.name,
+      fileUrl: existing.file?.url,
+      textAnswer: existing.textAnswer,
+      feedback: existing.feedback,
+    } : undefined;
+
+    const submissionRecord: AssignmentSubmissionItem = {
+      id: submissionId,
+      assignmentId: targetAssignment.id,
+      assignmentTitle: targetAssignment.title,
+      subjectId: targetAssignment.subjectId,
+      subjectName: targetAssignment.subjectName,
+      studentId: data.studentId,
+      studentName: data.studentName,
+      studentEmail: data.studentEmail,
+      submissionType: data.submissionType,
+      file: data.file,
+      textAnswer: data.textAnswer,
+      externalLink: data.externalLink,
+      submittedAt: formatted,
+      isLate,
+      status: 'submitted',
+      score: null,
+      maxScore: targetAssignment.maxScore,
+      feedback: undefined,
+      gradedBy: undefined,
+      gradedAt: undefined,
+      version: newVersion,
+      history: historyEntry ? [...(existing?.history || []), historyEntry] : (existing?.history || []),
+    };
+
+    setAssignmentSubmissions((prev) => {
+      const filtered = prev.filter((s) => s.id !== submissionId);
+      return [submissionRecord, ...filtered];
+    });
+
+    const isResubmission = !!existing;
+    logAssignmentEvent(
+      isResubmission ? 'resubmission_received' : 'submission_received',
+      {
+        userId: data.studentId,
+        userName: data.studentName,
+        userRole: 'student',
+        assignmentId: targetAssignment.id,
+        assignmentTitle: targetAssignment.title,
+        submissionId,
+        subjectId: targetAssignment.subjectId,
+        subjectName: targetAssignment.subjectName,
+        details: `${data.studentName} ${isResubmission ? 'resubmitted' : 'submitted'} ${data.submissionType} for "${targetAssignment.title}" in ${targetAssignment.subjectName}${isLate ? ' (Late)' : ''}.`,
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Your assignment has been submitted successfully.',
+    };
+  };
+
+  const gradeAssignmentSubmission = (
+    submissionId: string,
+    data: { score: number; feedback: string; status?: 'graded' | 'returned_for_revision'; teacherName: string }
+  ) => {
+    const now = new Date();
+    const formatted = `${now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+
+    let targetSubmission: AssignmentSubmissionItem | null = null;
+    const finalStatus = data.status || 'graded';
+
+    setAssignmentSubmissions((prev) =>
+      prev.map((sub) => {
+        if (sub.id === submissionId) {
+          targetSubmission = {
+            ...sub,
+            score: finalStatus === 'returned_for_revision' ? null : data.score,
+            feedback: data.feedback,
+            status: finalStatus,
+            gradedBy: data.teacherName,
+            gradedAt: formatted,
+          };
+          return targetSubmission;
+        }
+        return sub;
+      })
+    );
+
+    if (targetSubmission) {
+      const sub = targetSubmission as AssignmentSubmissionItem;
+      logAssignmentEvent(
+        finalStatus === 'returned_for_revision' ? 'returned_for_revision' : 'assignment_graded',
+        {
+          userId: sub.studentId,
+          userName: sub.studentName,
+          userRole: 'teacher',
+          assignmentId: sub.assignmentId,
+          assignmentTitle: sub.assignmentTitle,
+          submissionId: sub.id,
+          subjectId: sub.subjectId,
+          subjectName: sub.subjectName,
+          details: finalStatus === 'returned_for_revision'
+            ? `${data.teacherName} returned ${sub.studentName}'s assignment "${sub.assignmentTitle}" for revision.`
+            : `${data.teacherName} graded ${sub.studentName}'s assignment "${sub.assignmentTitle}" (Score: ${data.score}/${sub.maxScore}).`,
+        }
+      );
+    }
+  };
+
+  const returnSubmissionForRevision = (submissionId: string, data: { feedback: string; teacherName: string }) => {
+    gradeAssignmentSubmission(submissionId, {
+      score: 0,
+      feedback: data.feedback,
+      status: 'returned_for_revision',
+      teacherName: data.teacherName,
+    });
   };
 
   // Student: complete lesson
@@ -1877,6 +2652,16 @@ export function PlatformStoreProvider({ children }: { children: ReactNode }) {
         loginActivities,
         recentActivity,
         teacherApplications,
+        assignments,
+        assignmentSubmissions,
+        assignmentAuditLogs,
+        createAssignment,
+        updateAssignment,
+        publishAssignment,
+        deleteAssignment,
+        submitAssignment,
+        gradeAssignmentSubmission,
+        returnSubmissionForRevision,
         completeLesson,
         resetLessonProgress,
         uploadLessonSubmission,

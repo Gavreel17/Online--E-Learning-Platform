@@ -14,6 +14,10 @@ import {
   type LessonItem,
   type SubjectItem,
   type TeacherApplicationRecord,
+  type AssignmentItem,
+  type AssignmentSubmissionItem,
+  type AssignmentSubmissionType,
+  type AssignmentAuditEvent,
 } from '@/lib/platform-store';
 import { isQuestionUsedInQuiz, questionBankItemToQuizQuestion } from '@/lib/curriculum-data';
 import { useToast } from '@/hooks/use-toast';
@@ -30,9 +34,13 @@ import {
   ShieldCheck, Sparkles, Target, Trash2, Trophy, UserRound, Users, X, Zap,
   UploadCloud, FileText, FileCode, FileArchive, FileSpreadsheet, Paperclip, File,
   FileCheck, Eye, EyeOff, Lock, KeyRound, ShieldAlert, ArrowDownToLine, Camera, Image as ImageIcon, User,
-  AlertTriangle, Play, Video, Layers, FolderOpen, Compass,
+  AlertTriangle, Play, Video, Layers, FolderOpen, Compass, Inbox, Upload, Calendar, AlertCircle,
 } from 'lucide-react';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
+import { TeacherAssignmentsPage } from '@/components/assignments/teacher-assignments';
+import { TeacherSubmissionsPage } from '@/components/assignments/teacher-submissions';
+import { StudentAssignmentsPage } from '@/components/assignments/student-assignments';
+import { AssignmentReportsSection } from '@/components/assignments/assignment-reports-section';
 import {
   getGetAdminDashboardQueryKey, getGetAdminProfileQueryKey, getGetLessonQueryKey,
   getGetMeQueryKey, getGetMyProgressQueryKey, getGetQuizQueryKey, getGetSubjectQueryKey,
@@ -411,6 +419,7 @@ const studentNav = [
   ['/student/dashboard', 'Dashboard', LayoutDashboard],
   ['/student/subjects', 'Subjects', BookOpen],
   ['/student/lessons', 'Lessons', BookOpenCheck],
+  ['/student/assignments', 'Assignments', FileText],
   ['/student/library', 'Library', Paperclip],
   ['/student/quizzes', 'Quizzes', ClipboardList],
   ['/student/results', 'Results', Trophy],
@@ -422,6 +431,8 @@ const teacherNav = [
   ['/teacher/dashboard', 'Dashboard', LayoutDashboard],
   ['/teacher/subjects', 'My Subjects', BookOpen],
   ['/teacher/lessons', 'Lessons', BookOpenCheck],
+  ['/teacher/assignments', 'Assignments', FileText],
+  ['/teacher/submissions', 'Submissions', Inbox],
   ['/teacher/library', 'Library', Paperclip],
   ['/teacher/quizzes', 'Quizzes', ClipboardList],
   ['/teacher/questions', 'Question Bank', FileQuestion],
@@ -743,7 +754,7 @@ function Feature({ n, icon: Icon, title, body }: { n: string; icon: any; title: 
    ========================================================================= */
 
 function StudentDashboard() {
-  const { studentStats, lessons, subjects, syncCurrentStudent } = usePlatformStore();
+  const { studentStats, lessons, subjects, syncCurrentStudent, assignments, assignmentSubmissions } = usePlatformStore();
   const { user } = useAuth();
   const recent = lessons.slice(0, 4);
   const nextLesson = lessons.find((l) => !l.completed) || lessons[0];
@@ -862,6 +873,43 @@ function StudentDashboard() {
                 <ArrowRight className="ml-2 size-4 shrink-0 text-accent" />
               </Link>
             )}
+          </section>
+
+          {/* Upcoming Assignments Quick Card */}
+          <section className="rounded-2xl border border-card-border bg-card p-6 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">Coursework Tasks</p>
+                <h3 className="mt-1 font-display text-base font-bold text-foreground">Upcoming Assignments</h3>
+              </div>
+              <Link href="/student/assignments" className="text-xs font-bold text-teal-700 hover:underline">
+                View all →
+              </Link>
+            </div>
+            <div className="mt-4 space-y-3">
+              {assignments.filter((a) => a.status === 'published').slice(0, 2).map((asgn) => {
+                const sub = assignmentSubmissions.find((s) => s.assignmentId === asgn.id && (s.studentEmail === user?.email || s.studentId === user?.studentId));
+                return (
+                  <Link
+                    key={asgn.id}
+                    href="/student/assignments"
+                    className="block rounded-xl border border-border bg-muted/20 p-3 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-teal-700">{asgn.subjectName}</span>
+                      <span className="text-[10px] text-muted-foreground">Due: {new Date(asgn.dueDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                    <p className="mt-1 font-bold text-xs text-foreground truncate">{asgn.title}</p>
+                    <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">{asgn.maxScore} pts</span>
+                      <span className={`font-semibold ${sub ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {sub ? (sub.status === 'graded' ? 'Graded' : 'Submitted') : 'Pending'}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </section>
         </div>
       </div>
@@ -2582,7 +2630,7 @@ function ProfilePage({ admin = false }: { admin?: boolean }) {
 
 function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
   const store = usePlatformStore();
-  const { adminStats, recentActivity, subjects, lessons, students, quizzes } = store;
+  const { adminStats, recentActivity, subjects, lessons, students, quizzes, assignments, assignmentSubmissions, assignmentAuditLogs } = store;
   const { switchRole } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -2735,6 +2783,63 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
             <span className="font-bold text-accent">{adminStats.averageScore}%</span>
             <span>· 92% pass rate</span>
           </div>
+        </div>
+      </div>
+
+      {/* Assignment Management System Telemetry */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-rise">
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Assignments</span>
+            <div className="grid size-9 place-items-center rounded-xl bg-teal-700/10 text-teal-700">
+              <FileText className="size-4" />
+            </div>
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{assignments.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {assignments.filter((a) => a.status === 'published').length} active across {subjects.length} subjects
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Student Submissions</span>
+            <div className="grid size-9 place-items-center rounded-xl bg-teal-700/10 text-teal-700">
+              <Inbox className="size-4" />
+            </div>
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{assignmentSubmissions.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {assignmentSubmissions.filter((s) => !s.isLate).length} on-time · {assignmentSubmissions.filter((s) => s.isLate).length} late
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Pending Review</span>
+            <div className="grid size-9 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+              <Clock3 className="size-4" />
+            </div>
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-amber-600">
+            {assignmentSubmissions.filter((s) => s.status === 'submitted').length}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Submissions awaiting teacher grading</p>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Graded Work</span>
+            <div className="grid size-9 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <CheckCircle2 className="size-4" />
+            </div>
+          </div>
+          <div className="mt-3 font-display text-3xl font-extrabold text-emerald-600">
+            {assignmentSubmissions.filter((s) => s.status === 'graded').length}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {assignmentSubmissions.filter((s) => s.status === 'returned_for_revision').length} returned for revision
+          </p>
         </div>
       </div>
 
@@ -2935,6 +3040,39 @@ function AdminDashboardContent({ preview = false }: { preview?: boolean }) {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-primary-foreground">{item.title}</p>
                     <p className="mt-0.5 text-xs text-primary-foreground/65 leading-relaxed">{item.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Recent Assignment Activities (Real Event Audit Trail) */}
+          <section className="rounded-2xl border border-card-border bg-card p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div>
+                <p className="font-mono-ui text-[10px] font-bold uppercase tracking-widest text-teal-700">Coursework Events</p>
+                <h3 className="font-display text-base font-bold text-primary">Recent Assignment Activities</h3>
+              </div>
+              <Link href="/admin/reports" className="text-xs font-bold text-teal-700 hover:underline">
+                View Reports →
+              </Link>
+            </div>
+
+            <div className="mt-4 space-y-3.5">
+              {assignmentAuditLogs.slice(0, 5).map((log) => (
+                <div key={log.id} className="flex items-start gap-3 border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                  <span className={`mt-1 size-2 shrink-0 rounded-full ${
+                    log.eventType.includes('graded') ? 'bg-emerald-500' :
+                    log.eventType.includes('revision') ? 'bg-rose-500' :
+                    log.eventType.includes('submission') ? 'bg-blue-500' : 'bg-teal-700'
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-foreground leading-snug">{log.details}</p>
+                    <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{log.timestamp}</span>
+                      <span>•</span>
+                      <span className="capitalize text-teal-700 font-semibold">{log.userRole}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -6732,10 +6870,10 @@ function AdminResultsPage() {
 }
 
 function ReportsPage() {
-  const { students, subjects, lessons, quizzes, results, reportsData, adminStats } = usePlatformStore();
+  const { students, subjects, lessons, quizzes, results, reportsData, adminStats, assignments, assignmentSubmissions } = usePlatformStore();
   const { toast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'quizzes' | 'subjects' | 'submissions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'assignments' | 'students' | 'quizzes' | 'subjects' | 'submissions'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [performanceFilter, setPerformanceFilter] = useState<'all' | 'high' | 'average' | 'low'>('all');
   const [timeRange, setTimeRange] = useState('Current Term (Fall 2026)');
@@ -6988,6 +7126,7 @@ function ReportsPage() {
         <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/60 p-1">
           {[
             { id: 'overview', label: 'Dashboard & Insights', icon: LayoutDashboard },
+            { id: 'assignments', label: `Assignment Reports (${assignments.length})`, icon: FileText },
             { id: 'students', label: `Students (${studentRows.length})`, icon: Users },
             { id: 'quizzes', label: `Quizzes (${quizRows.length})`, icon: FileQuestion },
             { id: 'subjects', label: `Curriculum (${subjectRows.length})`, icon: BookOpen },
@@ -7416,6 +7555,11 @@ function ReportsPage() {
             </table>
           </div>
         </section>
+      )}
+
+      {/* Tab: ASSIGNMENT REPORTS SYSTEM (Categories A through E) */}
+      {activeTab === 'assignments' && (
+        <AssignmentReportsSection />
       )}
     </>
   );
@@ -8847,22 +8991,36 @@ function TeacherDashboard() {
           </p>
           <div className="mt-5 flex flex-wrap gap-2.5">
             <Link
-              href="/teacher/lessons"
+              href="/teacher/assignments"
               className="rounded-xl bg-accent px-4 py-2 text-xs font-bold text-primary shadow-[2px_2px_0_hsl(var(--primary))] hover:-translate-y-0.5 transition-transform"
+              data-testid="link-teacher-dashboard-assignments"
             >
-              <Plus className="inline size-3.5 mr-1" /> Publish New Lesson
+              <FileText className="inline size-3.5 mr-1" /> Assignments ({store.assignments.length})
+            </Link>
+            <Link
+              href="/teacher/submissions"
+              className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
+              data-testid="link-teacher-dashboard-submissions"
+            >
+              <Inbox className="inline size-3.5 mr-1" /> Grade Submissions ({store.assignmentSubmissions.length})
+            </Link>
+            <Link
+              href="/teacher/lessons"
+              className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
+            >
+              <Plus className="inline size-3.5 mr-1" /> Lessons
             </Link>
             <Link
               href="/teacher/quizzes"
               className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
             >
-              <ClipboardList className="inline size-3.5 mr-1" /> Create Assessment Quiz
+              <ClipboardList className="inline size-3.5 mr-1" /> Quizzes
             </Link>
             <Link
               href="/teacher/results"
               className="rounded-xl border border-primary-foreground/30 px-4 py-2 text-xs font-bold text-white hover:bg-primary-foreground/10 transition-colors"
             >
-              <Trophy className="inline size-3.5 mr-1" /> View Student Scores
+              <Trophy className="inline size-3.5 mr-1" /> Scores
             </Link>
           </div>
         </div>
@@ -8881,29 +9039,33 @@ function TeacherDashboard() {
 
         <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Lessons Published</span>
-            <BookOpenCheck className="size-5 text-teal-700" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Assignments</span>
+            <FileText className="size-5 text-teal-700" />
           </div>
-          <div className="mt-3 font-display text-3xl font-extrabold text-teal-700">{store.lessons.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">Interactive modules</p>
+          <div className="mt-3 font-display text-3xl font-extrabold text-teal-700">{store.assignments.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Coursework modules</p>
         </div>
 
         <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active Quizzes</span>
-            <ClipboardList className="size-5 text-teal-700" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Pending Submissions</span>
+            <Inbox className="size-5 text-amber-600" />
           </div>
-          <div className="mt-3 font-display text-3xl font-extrabold text-primary">{store.quizzes.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">Timed checks & tests</p>
+          <div className="mt-3 font-display text-3xl font-extrabold text-amber-600">
+            {store.assignmentSubmissions.filter((s) => s.status === 'submitted').length}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Submissions awaiting grading</p>
         </div>
 
         <div className="rounded-2xl border border-card-border bg-card p-5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Submissions Graded</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Graded Submissions</span>
             <Trophy className="size-5 text-emerald-600" />
           </div>
-          <div className="mt-3 font-display text-3xl font-extrabold text-emerald-600">{store.results.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">Learner quiz attempts</p>
+          <div className="mt-3 font-display text-3xl font-extrabold text-emerald-600">
+            {store.assignmentSubmissions.filter((s) => s.status === 'graded').length}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Evaluated with feedback</p>
         </div>
       </div>
 
@@ -10796,6 +10958,10 @@ function Router() {
         <Route path="/teacher/subjects/*?"><Protected role="teacher"><TeacherSubjectsPage /></Protected></Route>
         <Route path="/teacher/lessons"><Protected role="teacher"><TeacherLessonsPage /></Protected></Route>
         <Route path="/teacher/lessons/*?"><Protected role="teacher"><TeacherLessonsPage /></Protected></Route>
+        <Route path="/teacher/assignments"><Protected role="teacher"><TeacherAssignmentsPage /></Protected></Route>
+        <Route path="/teacher/assignments/*?"><Protected role="teacher"><TeacherAssignmentsPage /></Protected></Route>
+        <Route path="/teacher/submissions"><Protected role="teacher"><TeacherSubmissionsPage /></Protected></Route>
+        <Route path="/teacher/submissions/*?"><Protected role="teacher"><TeacherSubmissionsPage /></Protected></Route>
         <Route path="/teacher/library"><Protected role="teacher"><TeacherLibraryPage /></Protected></Route>
         <Route path="/teacher/library/*?"><Protected role="teacher"><TeacherLibraryPage /></Protected></Route>
         <Route path="/teacher/quizzes"><Protected role="teacher"><TeacherQuizzesPage /></Protected></Route>
@@ -10819,6 +10985,8 @@ function Router() {
         <Route path="/student/lessons/:id"><Protected><LessonDetail /></Protected></Route>
         <Route path="/student/lessons"><Protected><LessonsPage /></Protected></Route>
         <Route path="/student/lessons/*?"><Protected><LessonsPage /></Protected></Route>
+        <Route path="/student/assignments"><Protected><StudentAssignmentsPage /></Protected></Route>
+        <Route path="/student/assignments/*?"><Protected><StudentAssignmentsPage /></Protected></Route>
         <Route path="/student/library"><Protected><StudentLibraryPage /></Protected></Route>
         <Route path="/student/library/*?"><Protected><StudentLibraryPage /></Protected></Route>
         <Route path="/student/quizzes/:id"><Protected><QuizDetail /></Protected></Route>
